@@ -1,0 +1,43 @@
+
+# Seneca message patterns.
+#
+# main.msg is a LIST of message definitions, each carrying its pattern as
+# DATA, an ordered list of single-pair maps, rather than as its position
+# in a nested tree:
+#
+#   { pat: [{aim: forge}, {list: pr}] }
+#
+# THE BROWSER SURFACE: aim:web is the ONLY namespace the gateway accepts
+# from a browser. Every message a browser may send is declared here as a
+# web_ PROXY forwarding to the real service message — service messages
+# (aim:forge, aim:inbox, ...) are never directly reachable from the
+# network.
+
+[
+  # The contract every forge plugin (forge:github, forge:gitlab, forge:mem)
+  # specialises. No service ever branches on which forge answers these.
+
+  { pat: [{aim: forge}, {list: pr}] }
+  { pat: [{aim: forge}, {open: pr}] }
+  { pat: [{aim: forge}, {comment: issue}] }
+  { pat: [{aim: forge}, {label: issue}] }
+  { pat: [{aim: forge}, {assign: issue}] }
+  { pat: [{aim: forge}, {close: issue}] }
+  { pat: [{aim: forge}, {approve: pr}] }
+  { pat: [{aim: forge}, {request: review}] }
+  { pat: [{aim: forge}, {merge: pr}] }
+  { pat: [{aim: forge}, {dismiss: alert}] }
+  { pat: [{aim: forge}, {list: alert}] }
+  { pat: [{aim: forge}, {list: check}] }
+  { pat: [{aim: forge}, {get: info}] }
+
+
+  # ---- inbox — the one semantic intent for this stage --------------------
+  # service is what translates it into forge messages.
+
+  { pat: [{aim: inbox}, {dismiss: item}] }
+
+  { pat: [{aim: web}, {on: inbox}, {dismiss: item}], file: './web_dismiss_item' }
+
+]
+

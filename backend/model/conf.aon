@@ -1,0 +1,12 @@
+
+core: name: 'repo-manager'
+core: short: 'repo-manager'
+core: token: 'repo-manager-auth'
+
+port: &: number
+
+port: {
+  backend: 50500
+  frontend: 50501
+  repl: 50502
+}
