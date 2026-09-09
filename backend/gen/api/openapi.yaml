@@ -34,4 +34,526 @@ components:
             - code
       required:
         - error
-paths: {}
+    RpmItem:
+      type: object
+      additionalProperties: false
+      properties:
+        actor:
+          type: string
+          title: Actor
+        digest:
+          type: string
+          title: Digest
+        first_response_at:
+          type: number
+          title: First response at
+        first_seen:
+          type: number
+          title: First seen
+        id:
+          type: string
+          title: ID
+          readOnly: true
+        kind:
+          type: string
+          title: Kind
+        org_id:
+          type: string
+          title: Org
+        payload:
+          type: string
+          title: Payload
+        priority:
+          type: string
+          title: Priority
+        repo:
+          type: string
+          title: Repo
+        snooze_until:
+          type: number
+          title: Snooze until
+        source:
+          type: string
+          title: Source
+        state:
+          type: string
+          title: State
+        subject_id:
+          type: string
+          title: Subject ID
+        title:
+          type: string
+          title: Title
+        updated_at:
+          type: number
+          title: Updated at
+        url:
+          type: string
+          title: URL
+      required:
+        - digest
+        - first_seen
+        - kind
+        - org_id
+        - payload
+        - priority
+        - source
+        - state
+        - subject_id
+        - title
+        - updated_at
+    RpmItemCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        actor:
+          type: string
+          title: Actor
+        digest:
+          type: string
+          title: Digest
+        first_response_at:
+          type: number
+          title: First response at
+        first_seen:
+          type: number
+          title: First seen
+        kind:
+          type: string
+          title: Kind
+        org_id:
+          type: string
+          title: Org
+        payload:
+          type: string
+          title: Payload
+        priority:
+          type: string
+          title: Priority
+        repo:
+          type: string
+          title: Repo
+        snooze_until:
+          type: number
+          title: Snooze until
+        source:
+          type: string
+          title: Source
+        state:
+          type: string
+          title: State
+        subject_id:
+          type: string
+          title: Subject ID
+        title:
+          type: string
+          title: Title
+        updated_at:
+          type: number
+          title: Updated at
+        url:
+          type: string
+          title: URL
+      required:
+        - digest
+        - first_seen
+        - kind
+        - org_id
+        - payload
+        - priority
+        - source
+        - state
+        - subject_id
+        - title
+        - updated_at
+    RpmItemUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        actor:
+          type: string
+          title: Actor
+        digest:
+          type: string
+          title: Digest
+        first_response_at:
+          type: number
+          title: First response at
+        first_seen:
+          type: number
+          title: First seen
+        kind:
+          type: string
+          title: Kind
+        org_id:
+          type: string
+          title: Org
+        payload:
+          type: string
+          title: Payload
+        priority:
+          type: string
+          title: Priority
+        repo:
+          type: string
+          title: Repo
+        snooze_until:
+          type: number
+          title: Snooze until
+        source:
+          type: string
+          title: Source
+        state:
+          type: string
+          title: State
+        subject_id:
+          type: string
+          title: Subject ID
+        title:
+          type: string
+          title: Title
+        updated_at:
+          type: number
+          title: Updated at
+        url:
+          type: string
+          title: URL
+paths:
+  /v1/rpm/item:
+    get:
+      operationId: list_rpm_item
+      summary: List item entities
+      tags:
+        - rpm/item
+      parameters:
+        - name: actor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by actor
+        - name: digest
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by digest
+        - name: first_response_at
+          in: query
+          required: false
+          schema:
+            type: number
+          description: Filter by first_response_at
+        - name: first_seen
+          in: query
+          required: false
+          schema:
+            type: number
+          description: Filter by first_seen
+        - name: id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by id
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by kind
+        - name: org_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by org_id
+        - name: payload
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by payload
+        - name: priority
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by priority
+        - name: repo
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by repo
+        - name: snooze_until
+          in: query
+          required: false
+          schema:
+            type: number
+          description: Filter by snooze_until
+        - name: source
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by source
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by state
+        - name: subject_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by subject_id
+        - name: title
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by title
+        - name: updated_at
+          in: query
+          required: false
+          schema:
+            type: number
+          description: Filter by updated_at
+        - name: url
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by url
+      responses:
+        '200':
+          description: Matching item entities
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RpmItem'
+                required:
+                  - items
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: create_rpm_item
+      summary: Create a item
+      tags:
+        - rpm/item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RpmItemCreate'
+      responses:
+        '201':
+          description: The created item
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  item:
+                    $ref: '#/components/schemas/RpmItem'
+                required:
+                  - item
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/rpm/item/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: load_rpm_item
+      summary: Load one item
+      tags:
+        - rpm/item
+      responses:
+        '200':
+          description: The item
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  item:
+                    $ref: '#/components/schemas/RpmItem'
+                required:
+                  - item
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      operationId: update_rpm_item
+      summary: Update a item (partial)
+      tags:
+        - rpm/item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RpmItemUpdate'
+      responses:
+        '200':
+          description: The updated item
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  item:
+                    $ref: '#/components/schemas/RpmItem'
+                required:
+                  - item
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: remove_rpm_item
+      summary: Remove a item
+      tags:
+        - rpm/item
+      responses:
+        '200':
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+                required:
+                  - ok
+                  - id
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

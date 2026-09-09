@@ -35,6 +35,8 @@
   # ---- inbox — the one semantic intent for this stage --------------------
   # service is what translates it into forge messages.
 
+  { pat: [{aim: inbox}, {sync: item}] }
+  { pat: [{aim: inbox}, {list: item}] }
   { pat: [{aim: inbox}, {dismiss: item}] }
 
   { pat: [{aim: web}, {on: inbox}, {dismiss: item}], file: './web_dismiss_item' }

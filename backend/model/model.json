@@ -18,6 +18,94 @@
       }
     },
     "ent": {
+      "rpm": {
+        "item": {
+          "field": {
+            "actor": {
+              "kind": "String",
+              "label": "Actor",
+              "valid": "Skip"
+            },
+            "digest": {
+              "kind": "String",
+              "label": "Digest"
+            },
+            "first_response_at": {
+              "kind": "Number",
+              "label": "First response at",
+              "valid": "Skip"
+            },
+            "first_seen": {
+              "kind": "Number",
+              "label": "First seen"
+            },
+            "id": {
+              "kind": "String",
+              "label": "ID"
+            },
+            "kind": {
+              "kind": "String",
+              "label": "Kind"
+            },
+            "org_id": {
+              "kind": "String",
+              "label": "Org"
+            },
+            "payload": {
+              "kind": "Object",
+              "label": "Payload",
+              "valid": {
+                "$$": "Open"
+              }
+            },
+            "priority": {
+              "kind": "String",
+              "label": "Priority"
+            },
+            "repo": {
+              "kind": "String",
+              "label": "Repo",
+              "valid": "Skip"
+            },
+            "snooze_until": {
+              "kind": "Number",
+              "label": "Snooze until",
+              "valid": "Skip"
+            },
+            "source": {
+              "kind": "String",
+              "label": "Source"
+            },
+            "state": {
+              "kind": "String",
+              "label": "State"
+            },
+            "subject_id": {
+              "kind": "String",
+              "label": "Subject ID"
+            },
+            "title": {
+              "kind": "String",
+              "label": "Title"
+            },
+            "updated_at": {
+              "kind": "Number",
+              "label": "Updated at"
+            },
+            "url": {
+              "kind": "String",
+              "label": "URL",
+              "valid": "Skip"
+            }
+          },
+          "id": {
+            "field": "id"
+          },
+          "valid": {
+            "$$": "Open"
+          }
+        }
+      },
       "sys": {
         "login": {
           "field": {
@@ -189,6 +277,26 @@
             "aim": "inbox"
           },
           {
+            "sync": "item"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "list": "item"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
             "dismiss": "item"
           }
         ]
@@ -220,7 +328,47 @@
         }
       }
     },
-    "srv": {},
+    "srv": {
+      "inbox": {
+        "api": {
+          "web": {
+            "active": true,
+            "cors": {
+              "active": false
+            },
+            "method": "POST",
+            "path": {
+              "area": "",
+              "prefix": "/api/",
+              "suffix": ""
+            }
+          }
+        },
+        "deps": {},
+        "env": {
+          "lambda": {
+            "active": false,
+            "handler": {
+              "path": {
+                "prefix": "dist/handler/lambda/",
+                "suffix": ".handler"
+              }
+            },
+            "kind": "standard",
+            "timeout": 30
+          }
+        },
+        "in": {
+          "aim": {
+            "inbox": {}
+          }
+        },
+        "options": {
+          "debug": true
+        },
+        "out": {}
+      }
+    },
     "theme": {
       "mode": "light",
       "modes": {

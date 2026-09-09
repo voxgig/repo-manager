@@ -15,6 +15,94 @@ sys: login: {
 }
 
 
+## The work item — the one entity Stage 1 needs (SPEC.REPO-MANAGER.md §12).
+## Derived, not user-created: a sync pass computes conditions true across the
+## fleet and this stores one row per condition. Stage 1 populates exactly one
+## kind, 'pr.review_requested', and only the 'open'/'done' states.
+
+rpm: &: $.main.shape.ent
+
+rpm: item: {
+  field: {
+    id: {
+      label: 'ID'
+      kind: String
+    }
+    org_id: {
+      label: 'Org'
+      kind: String
+    }
+    source: {
+      label: 'Source'
+      kind: String
+    }
+    repo: {
+      label: 'Repo'
+      kind: String
+      valid: Skip
+    }
+    kind: {
+      label: 'Kind'
+      kind: String
+    }
+    title: {
+      label: 'Title'
+      kind: String
+    }
+    url: {
+      label: 'URL'
+      kind: String
+      valid: Skip
+    }
+    actor: {
+      label: 'Actor'
+      kind: String
+      valid: Skip
+    }
+    subject_id: {
+      label: 'Subject ID'
+      kind: String
+    }
+    priority: {
+      label: 'Priority'
+      kind: String
+    }
+    state: {
+      label: 'State'
+      kind: String
+    }
+    snooze_until: {
+      label: 'Snooze until'
+      kind: Number
+      valid: Skip
+    }
+    first_seen: {
+      label: 'First seen'
+      kind: Number
+    }
+    first_response_at: {
+      label: 'First response at'
+      kind: Number
+      valid: Skip
+    }
+    updated_at: {
+      label: 'Updated at'
+      kind: Number
+    }
+    digest: {
+      label: 'Digest'
+      kind: String
+    }
+    payload: {
+      label: 'Payload'
+      kind: Object
+      valid: '$$': 'Open'
+    }
+  }
+  valid: '$$': 'Open'
+}
+
+
 ## Example application entity. Uncomment (and the zone shape line) to add
 ## your first entity; the owner_id field gives per-user isolation via the
 ## @seneca/owner plugin (see src/env/shared/basic.ts).

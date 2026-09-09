@@ -11,13 +11,19 @@ derived from the model.*
 flowchart TB
   client([Clients]) -->|aim:*| gateway{{gateway}}
   subgraph services[Services]
+    srv_inbox[inbox]
   end
+  gateway --> srv_inbox
   subgraph data[Entities]
+    subgraph zone_rpm[zone rpm]
+      rpm_item[item]
+    end
     subgraph zone_sys[zone sys]
       sys_login[login]
       sys_user[user]
     end
   end
+  srv_inbox --> data
 ```
 
 ## Target environments

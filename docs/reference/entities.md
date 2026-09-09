@@ -11,6 +11,25 @@ target entity).
 
 ```mermaid
 erDiagram
+  rpm_item {
+    String actor
+    String digest
+    Number first_response_at
+    Number first_seen
+    String id
+    String kind
+    String org_id
+    Object payload
+    String priority
+    String repo
+    Number snooze_until
+    String source
+    String state
+    String subject_id
+    String title
+    Number updated_at
+    String url
+  }
   sys_login {
     String id
   }
@@ -25,5 +44,6 @@ erDiagram
 
 | Canon | Fields | Relationships | UI |
 |---|---|---|---|
+| `rpm/item` | actor, digest, first_response_at, first_seen, id, kind, org_id, payload, priority, repo, snooze_until, source, state, subject_id, title, updated_at, url | — | generic admin |
 | `sys/login` | id | — | generic admin |
 | `sys/user` | id | — | generic admin |

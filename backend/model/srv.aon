@@ -2,6 +2,13 @@
 &: $.sys.shape.srv.std_ts
 
 
+inbox: {
+  in: {
+    aim: inbox: {}
+  }
+}
+
+
 ## Example service definition. Uncomment to add the example 'thing'
 ## service (see also msg.aon and src/srv/).
 

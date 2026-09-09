@@ -13,4 +13,14 @@ flowchart LR
   client([Clients / SPA])
   gateway{{gateway}}
   client -->|aim:* messages| gateway
+  inbox[srv inbox]
+  gateway -->|aim:inbox| inbox
 ```
+
+## Service: inbox
+
+| Message | Action file |
+|---|---|
+| `aim:inbox,sync:item` | `src/srv/inbox/sync_item.ts` |
+| `aim:inbox,list:item` | `src/srv/inbox/list_item.ts` |
+| `aim:inbox,dismiss:item` | `src/srv/inbox/dismiss_item.ts` |

@@ -6,7 +6,11 @@ module.exports = function forge_mem(this: any) {
   const seneca = this
 
   const prs: any = {
-    'p1': { id: 'p1', repo_id: 'r1', title: 'Fix thing', state: 'open' },
+    'p1': {
+      id: 'p1', repo_id: 'r1', title: 'Fix thing', state: 'open',
+      url: 'https://example.com/r1/pull/1', author: 'contributor1',
+      requested_reviewers: ['maintainer1'], updated_at: 1700000000000,
+    },
   }
 
   const alerts: any = {
@@ -18,7 +22,11 @@ module.exports = function forge_mem(this: any) {
   }
 
   seneca.message('aim:forge,list:pr,forge:mem', async function (msg: any) {
-    return { ok: true, prs: Object.values(prs).filter((p: any) => p.repo_id === msg.repo_id) }
+    // Matches the real GitHub API: list$ returns open PRs only.
+    return {
+      ok: true,
+      prs: Object.values(prs).filter((p: any) => p.repo_id === msg.repo_id && 'open' === p.state),
+    }
   })
 
   seneca.message('aim:forge,open:pr,forge:mem', async function (msg: any) {
