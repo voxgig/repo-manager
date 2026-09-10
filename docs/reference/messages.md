@@ -15,6 +15,7 @@ flowchart LR
   client -->|aim:* messages| gateway
   inbox[srv inbox]
   gateway -->|aim:inbox| inbox
+  gateway -->|aim:web| inbox
 ```
 
 ## Service: inbox
@@ -24,3 +25,6 @@ flowchart LR
 | `aim:inbox,sync:item` | `src/srv/inbox/sync_item.ts` |
 | `aim:inbox,list:item` | `src/srv/inbox/list_item.ts` |
 | `aim:inbox,dismiss:item` | `src/srv/inbox/dismiss_item.ts` |
+| `aim:web,on:inbox,sync:item` | `src/srv/inbox/web_sync_item.ts` |
+| `aim:web,on:inbox,list:item` | `src/srv/inbox/web_list_item.ts` |
+| `aim:web,on:inbox,dismiss:item` | `src/srv/inbox/web_dismiss_item.ts` |

@@ -1,0 +1,20 @@
+{
+  point: "warning"
+  when: 1789049461733
+  err: {
+    name: "Error"
+    message: "apidef: no server URL found in API definition (servers[0].url is required)."
+    stack: `Error: apidef: no server URL found in API definition (servers[0].url is required).
+    at topTransform (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/apidef/dist/transform/top.js:127:15)
+    at Object.generate (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/apidef/dist/apidef.js:203:42)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Object.build [as action] (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/apidef/dist/apidef.js:383:16)
+    at async Object.local_producer [as build] (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/model/dist/producer/local.js:60:24)
+    at async BuildImpl.run (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/model/dist/build.js:60:30)
+    at async Watch.run (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/model/dist/watch.js:168:22)
+    at async generate (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/model/bin/voxgig-model:224:16)
+    at async run (/home/rafael/Work/voxgig/repo-manager/sdk/.sdk/node_modules/@voxgig/model/bin/voxgig-model:44:5)`
+  }
+
+  note: "!! BUILD FAILED !! apidef: no server URL found in API definition (servers[0].url is required)."
+}

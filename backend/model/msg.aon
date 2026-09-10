@@ -39,6 +39,8 @@
   { pat: [{aim: inbox}, {list: item}] }
   { pat: [{aim: inbox}, {dismiss: item}] }
 
+  { pat: [{aim: web}, {on: inbox}, {sync: item}], file: './web_sync_item' }
+  { pat: [{aim: web}, {on: inbox}, {list: item}], file: './web_list_item' }
   { pat: [{aim: web}, {on: inbox}, {dismiss: item}], file: './web_dismiss_item' }
 
 ]

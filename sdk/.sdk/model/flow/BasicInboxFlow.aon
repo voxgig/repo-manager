@@ -1,0 +1,22 @@
+# BasicInboxFlow
+
+main: kit: flow: BasicInboxFlow:
+{
+  entity: "inbox",
+  kind: "basic",
+  name: "BasicInboxFlow",
+  step: [
+    {
+      op: "list",
+      valid: [
+        {
+          apply: "ItemExists",
+          def: {
+            ref: "inbox_ref01"
+          }
+        }
+      ]
+    }
+  ],
+  "key$": "BasicInboxFlow"
+}

@@ -1,0 +1,73 @@
+{
+  "existing": {
+    "inbox": {
+      "INBOX00": {
+        "actor": "s8c",
+        "digest": "s8d",
+        "first_seen": "s8e",
+        "id": "INBOX00",
+        "kind": "s90",
+        "org_id": "ORG01",
+        "priority": "s92",
+        "repo": "s93",
+        "source": "s94",
+        "state": "s95",
+        "subject_id": "SUBJECT01",
+        "title": "s97",
+        "updated_at": "s98",
+        "url": "s99"
+      },
+      "INBOX01": {
+        "actor": "s118",
+        "digest": "s119",
+        "first_seen": "s11a",
+        "id": "INBOX01",
+        "kind": "s11c",
+        "org_id": "ORG01",
+        "priority": "s11e",
+        "repo": "s11f",
+        "source": "s120",
+        "state": "s121",
+        "subject_id": "SUBJECT01",
+        "title": "s123",
+        "updated_at": "s124",
+        "url": "s125"
+      },
+      "INBOX02": {
+        "actor": "s1a4",
+        "digest": "s1a5",
+        "first_seen": "s1a6",
+        "id": "INBOX02",
+        "kind": "s1a8",
+        "org_id": "ORG01",
+        "priority": "s1aa",
+        "repo": "s1ab",
+        "source": "s1ac",
+        "state": "s1ad",
+        "subject_id": "SUBJECT01",
+        "title": "s1af",
+        "updated_at": "s1b0",
+        "url": "s1b1"
+      }
+    }
+  },
+  "new": {
+    "inbox": {
+      "inbox_ref01": {
+        "actor": "s230",
+        "digest": "s231",
+        "first_seen": "s232",
+        "kind": "s234",
+        "org_id": "ORG01",
+        "priority": "s236",
+        "repo": "s237",
+        "source": "s238",
+        "state": "s239",
+        "subject_id": "SUBJECT01",
+        "title": "s23b",
+        "updated_at": "s23c",
+        "url": "s23d"
+      }
+    }
+  }
+}

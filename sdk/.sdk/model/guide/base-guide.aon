@@ -1,0 +1,14 @@
+# Guide
+
+guide: {
+  metrics: count: entity: 1
+  metrics: count: path: 1
+  metrics: count: method: 1
+
+  entity: inbox: {
+    path: "/api/v1/inbox": {
+      op: list: method: *GET
+    }
+  }
+
+}

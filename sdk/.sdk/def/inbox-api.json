@@ -1,0 +1,55 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "version": "0.0.1",
+    "title": "repo-manager inbox API",
+    "description": "Read-only inbox listing (Stage 1, SPEC.REPO-MANAGER.md §12)."
+  },
+  "servers": [
+    { "url": "http://localhost:50500" }
+  ],
+  "paths": {
+    "/api/v1/inbox": {
+      "get": {
+        "summary": "List inbox items",
+        "operationId": "inbox/list",
+        "responses": {
+          "200": {
+            "description": "Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/item" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "item": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "org_id": { "type": "string" },
+          "source": { "type": "string" },
+          "repo": { "type": "string" },
+          "kind": { "type": "string" },
+          "title": { "type": "string" },
+          "url": { "type": "string" },
+          "actor": { "type": "string" },
+          "subject_id": { "type": "string" },
+          "priority": { "type": "string" },
+          "state": { "type": "string" },
+          "first_seen": { "type": "integer" },
+          "updated_at": { "type": "integer" },
+          "digest": { "type": "string" }
+        }
+      }
+    }
+  }
+}

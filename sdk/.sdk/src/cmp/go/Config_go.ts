@@ -1,0 +1,315 @@
+
+import * as Path from 'node:path'
+
+
+import {
+  Content,
+  File,
+  Fragment,
+  Line,
+  cmp,
+  each,
+  configDefinition,
+  configReprSetting,
+  goModule,
+  isAuthActive,
+  isConfigData,
+  resolveAuthPrefix,
+  serverVariables,
+  targetFeatures,
+} from '@voxgig/sdkgen'
+
+
+import {
+  KIT,
+  Model,
+  getModelPath,
+  nom,
+} from '@voxgig/apidef'
+
+
+import {
+  formatGoMap,
+  goFeatureName,
+} from './utility_go'
+
+
+const Config = cmp(async function Config(props: any) {
+  const ctx$ = props.ctx$
+  const target = props.target
+
+  const model: Model = ctx$.model
+
+  const entity = getModelPath(model, `main.${KIT}.entity`)
+  // Gated by the applicability tags, so this target never imports or
+  // registers a feature it has no source for. One rule, one place:
+  // helpers/applicability.
+  const feature = targetFeatures(model, target)
+
+  const headers = getModelPath(model, `main.${KIT}.config.headers`) || {}
+
+  const authActive = isAuthActive(model)
+  // config.auth.prefix override -> spec-derived info.security.prefix -> 'Bearer'
+  const authPrefix = resolveAuthPrefix(model)
+
+  let baseUrl = ''
+  try { baseUrl = getModelPath(model, `main.${KIT}.info.servers.0.url`) } catch (_e) { }
+
+  // Templated server URL: emit the spec's server-variable defaults so the
+  // runtime can substitute {name} placeholders in base (see make_options).
+  const svars = serverVariables(model)
+  const serverBlock = 0 === svars.length ? '' :
+    '\t\t\t"server": map[string]any{\n' +
+    svars.map((v: any) => `\t\t\t\t${JSON.stringify(v.name)}: ${JSON.stringify(v.dflt)},\n`).join('') +
+    '\t\t\t},\n'
+
+  const authBlock = authActive
+    ? `			"auth": map[string]any{
+				"prefix": "${authPrefix}",
+			},\n`
+    : ''
+
+  // The same config as an OBJECT, built by the shared helper so this target's
+  // literal and the data that replaces it above the threshold are the same
+  // config by construction. The JSON is what the threshold is measured on -
+  // emitted source size varies by language, the model does not.
+  const { def: configDef, json: configJson } = configDefinition(model, target.name)
+  const asData = isConfigData(configJson, configReprSetting(model))
+
+  // PLUGIN DEFINITION IMPORTS AND THE FeaturePlugins MAP (the go peer of
+  // Config_ts's pluginImports/pluginDefs).
+  //
+  // Upstream sekreto replaced its self-registration registry with
+  // voxgig/plugin definitions: a provider kind the caller did not pass in
+  // via `Plugins: [...]` is unknown to that Sekreto. So the config imports
+  // each active plugin's exported Definition BY NAME (the model's
+  // per-target `def` map - `aws.Secrets`, a package-qualified go symbol)
+  // and hands the list to the feature through core.FeaturePlugins.
+  //
+  // Emitted in core (not in the feature package) so the dependency runs
+  // core -> plugins -> sekreto -> plugin with no cycle; the feature reads
+  // it back as []any and type-asserts, so a tree with the feature present
+  // but never selected still compiles.
+  const gomodule = goModule(model, target.name)
+  const pluginPaths = new Set<string>()
+  const featurePlugins: Record<string, string[]> = {}
+
+  each(feature, (f: any) => {
+    const syms: string[] = []
+    each(f.plugin, (plugin: any) => {
+      // Filter on `active` HERE rather than trusting the feature object to
+      // arrive filtered (see Config_ts.pluginImports: getting this wrong
+      // emits an import for a package the trim just deleted).
+      if (false === plugin.active || null == plugin.active) return
+      for (const [sym, one] of Object.entries(plugin.def?.go || {})) {
+        // 'feature/secrets/plugins/aws/aws.go' -> its PACKAGE directory.
+        pluginPaths.add(String(one).replace(/\/[^/]+$/, ''))
+        syms.push(sym)
+      }
+    })
+    if (0 < syms.length) {
+      featurePlugins[f.name] = syms.sort()
+    }
+  })
+
+  const pluginImportLines = Array.from(pluginPaths).sort()
+    .map((p: string) => `\t"${gomodule}/${p}"\n`).join('')
+  const pluginImportBlock = '' === pluginImportLines ? '' :
+    '\n' + pluginImportLines
+
+  const featurePluginsBlock =
+    'var featurePlugins = map[string][]any{\n' +
+    Object.keys(featurePlugins).sort().map((fname: string) =>
+      `\t"${fname}": {${featurePlugins[fname].join(', ')}},\n`).join('') +
+    '}\n'
+
+  File({ name: 'config.' + target.ext }, () => {
+
+    // ABOVE THE THRESHOLD: emit the model as DATA.
+    //
+    // A composite literal makes the compiler walk every node of the model;
+    // a string constant is one token. On the real gitlab model that is 30.8 s
+    // and 2.49 GB of compiler memory versus 0.34 s and 0.06 GB, and a binary
+    // 2.1x smaller. MakeConfig still returns the same map, so nothing
+    // downstream can tell which representation it got.
+    //
+    // JSON.stringify output is a valid Go interpreted string literal: JSON
+    // escapes are a subset of Go's, and Go source is UTF-8 so non-ASCII needs
+    // no escaping. A raw (backtick) literal could NOT be used - the model
+    // contains backticks in values like `$STRING`.
+    if (asData) {
+      Content(`package core
+
+import (
+	"encoding/json"
+	"math"
+	"sync"
+${pluginImportBlock})
+
+// The API model, emitted as data rather than as a composite literal: see
+// sdkgen rung L1. Parsed by MakeConfig, and parsed once by SharedConfig.
+const configJSON = ${JSON.stringify(configJson)}
+
+// json.Unmarshal decodes EVERY JSON number as float64, but the literal
+// representation emits an integer token as an untyped constant that lands in
+// map[string]any as an int. MakeConfig is public API and consumers type-assert
+// against it, so the two representations must not disagree about the type of
+// a whole number just because the model crossed a size threshold.
+//
+// Whole values become int; anything fractional, or too large to be exact in a
+// float64, stays float64 - which is what the literal branch does too.
+func configNormalise(val any) any {
+	switch v := val.(type) {
+	case map[string]any:
+		for k, c := range v {
+			v[k] = configNormalise(c)
+		}
+		return v
+	case []any:
+		for i, c := range v {
+			v[i] = configNormalise(c)
+		}
+		return v
+	case float64:
+		if v == math.Trunc(v) && math.Abs(v) <= 1<<53 {
+			return int(v)
+		}
+		return v
+	}
+	return val
+}
+
+// MakeConfig parses a fresh, fully materialised config map. Every call
+// re-parses, so prefer SharedConfig unless you need a private copy you
+// intend to mutate.
+func MakeConfig() map[string]any {
+	var out map[string]any
+	if err := json.Unmarshal([]byte(configJSON), &out); err != nil {
+		// Unreachable: the constant is generated by json.Marshal's
+		// counterpart and never edited by hand. Panic rather than return a
+		// silently empty config, which would fail far from the cause.
+		panic("${model.const.Name}: embedded config is not valid JSON: " + err.Error())
+	}
+	out, _ = configNormalise(out).(map[string]any)
+	return out
+}
+`)
+    }
+    else {
+
+    Content(`package core
+
+import (
+	"sync"
+${pluginImportBlock})
+
+`)
+
+    // main slug/version/target come from configDefinition's def, not
+    // re-derived here, so the literal rep and the data rep cannot disagree
+    // on identity (mirrors Config_ts's #MainMeta block; station's
+    // descriptor reads all three).
+    Content(`// MakeConfig builds a fresh, fully materialised config map. Every call
+// rebuilds the whole structure, so prefer SharedConfig unless you need a
+// private copy you intend to mutate.
+func MakeConfig() map[string]any {
+	return map[string]any{
+		"main": map[string]any{
+			"name": "${model.const.Name}",
+			"slug": ${JSON.stringify(configDef.main.slug)},
+			"version": ${JSON.stringify(configDef.main.version)},
+			"target": ${JSON.stringify(configDef.main.target)},
+		},
+		"feature": map[string]any{
+`)
+
+    each(feature, (f: any) => {
+      // From configDefinition's def, not f.config, so the literal carries
+      // the feature's `transport` role (station design §8.4) beside its
+      // options and cannot drift from the data rep.
+      const fconfig = configDef.feature[f.name] || {}
+      Content(`			"${f.name}": ${formatGoMap(fconfig, 3)},
+`)
+    })
+
+    Content(`		},
+		"options": map[string]any{
+			"base": "${baseUrl}",
+${serverBlock}${authBlock}			"headers": ${formatGoMap(headers, 3)},
+			"entity": map[string]any{
+`)
+
+    each(entity, (entity: any) => {
+      Content(`				"${entity.name}": map[string]any{},
+`)
+    })
+
+    Content(`			},
+		},
+		"entity": ${formatGoMap(
+configDef.entity, 2)},
+	}
+}
+`)
+    }
+
+    Content(`
+// The plugin definitions the model selected per feature, as []any so a
+// feature package can consume them without core naming its types. Empty
+// when no active feature declares active plugin groups for this target.
+${featurePluginsBlock}
+// FeaturePlugins is the definitions list for one feature's chain.
+func FeaturePlugins(name string) []any {
+	return featurePlugins[name]
+}
+
+var (
+	sharedConfigOnce sync.Once
+	sharedConfigVal  map[string]any
+)
+
+// SharedConfig returns the process-wide config, built once on first use.
+// The SDK reads the config on every request and never writes to it, so one
+// instance is shared by every client rather than rebuilt per client.
+//
+// The returned map is shared: treat it as read-only. Callers that need to
+// mutate should use MakeConfig, which always returns a fresh copy.
+func SharedConfig() map[string]any {
+	sharedConfigOnce.Do(func() {
+		sharedConfigVal = MakeConfig()
+	})
+	return sharedConfigVal
+}
+
+func makeFeature(name string) Feature {
+	switch name {
+`)
+
+    each(feature, (f: any) => {
+      // MUST match Main_go.ts, which DECLARES these identifiers in registry.go
+      // and the root init(); see goFeatureName.
+      const fname = goFeatureName(f)
+      if (f.name !== 'base') {
+        Content(`	case "${f.name}":
+		if New${fname}FeatureFunc != nil {
+			return New${fname}FeatureFunc()
+		}
+`)
+      }
+    })
+
+    Content(`	default:
+		if NewBaseFeatureFunc != nil {
+			return NewBaseFeatureFunc()
+		}
+	}
+	return nil
+}
+`)
+  })
+})
+
+
+export {
+  Config
+}

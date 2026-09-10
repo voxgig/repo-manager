@@ -1,0 +1,87 @@
+/* Project CSS customisation (CREATE-ONCE — never overwritten). Override the
+   theme variables (defined in style.css) to restyle the whole app, and add
+   any rules you like. */
+
+:root {
+  /* e.g. --vg-primary: #7c3aed; --vg-topbar-bg: #111827; */
+}
+
+/* ---- inbox (cmp/inbox.js) ---- */
+
+.vg-inbox { display: flex; flex-direction: column; height: 100vh; }
+
+.vg-inbox-topbar { display: flex; align-items: center; gap: 0.6rem; padding: 0 1rem; height: 52px;
+  background: var(--vg-topbar-bg); color: var(--vg-topbar-fg); flex: 0 0 auto; }
+.vg-inbox-brand { font-weight: 700; }
+.vg-inbox-crumb { color: var(--vg-muted); }
+.vg-inbox-meta { color: #8b949e; font-size: 0.85rem; }
+.vg-inbox-status { color: var(--vg-primary); font-size: 0.85rem; }
+.vg-inbox-avatar { width: 28px; height: 28px; border-radius: 50%; background: #2b3d4f;
+  display: flex; align-items: center; justify-content: center; color: #aeb9c5; }
+.vg-cmdk-btn { background: #1b2a3a; color: #e6edf3; border: 1px solid #2b3d4f; border-radius: 6px;
+  padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+.vg-cmdk-btn:hover { background: #22334a; }
+
+/* ---- command bar (SPEC §13.4) ---- */
+
+.vg-palette-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 50; }
+.vg-palette { width: 480px; max-width: 90vw; background: var(--vg-surface); border: 1px solid var(--vg-border);
+  border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.4); overflow: hidden; }
+.vg-palette-input { width: 100%; padding: 0.8rem 1rem; border: none; border-bottom: 1px solid var(--vg-border);
+  background: transparent; color: var(--vg-text); font: inherit; font-size: 1rem; outline: none; }
+.vg-palette-list { max-height: 40vh; overflow-y: auto; padding: 0.4rem; }
+.vg-palette-row { padding: 0.5rem 0.7rem; border-radius: 6px; cursor: pointer; }
+.vg-palette-row:hover { background: var(--vg-bg); }
+.vg-palette-row.vg-focused { background: var(--vg-accent-bg); color: var(--vg-primary); }
+.vg-palette-empty { padding: 0.7rem; color: var(--vg-muted); }
+
+.vg-inbox-shell { display: flex; flex: 1; min-height: 0; }
+
+.vg-inbox-nav { flex: 0 0 200px; background: var(--vg-surface); border-right: 1px solid var(--vg-border);
+  overflow-y: auto; padding: 0.7rem; }
+.vg-nav-item { padding: 0.4rem 0.6rem; border-radius: 6px; display: flex; justify-content: space-between; }
+.vg-nav-active { background: var(--vg-accent-bg); color: var(--vg-primary); font-weight: 600; }
+.vg-nav-inert { color: var(--vg-muted); cursor: default; }
+.vg-nav-count { color: var(--vg-primary); }
+.vg-nav-group-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--vg-muted); padding: 0.9rem 0.6rem 0.2rem; }
+
+.vg-inbox-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.vg-inbox-body { display: flex; flex: 1; min-height: 0; }
+
+.vg-inbox-list { flex: 1; overflow-y: auto; border-right: 1px solid var(--vg-border); }
+.vg-inbox-list-head { padding: 0.8rem 1rem; font-weight: 700; }
+.vg-inbox-count { color: var(--vg-primary); margin-left: 0.3rem; }
+
+.vg-inbox-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 1rem;
+  border-top: 1px solid var(--vg-border); cursor: pointer; }
+.vg-inbox-row:hover { background: var(--vg-bg); }
+.vg-inbox-row.vg-focused { outline: 2px solid var(--vg-primary); outline-offset: -2px; }
+.vg-inbox-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vg-inbox-repo { color: var(--vg-muted); font-family: monospace; font-size: 0.85rem; }
+.vg-inbox-age { color: var(--vg-muted); font-size: 0.85rem; }
+
+.vg-priority-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--vg-muted); }
+.vg-priority-dot.vg-priority-now { background: #e5484d; }
+.vg-priority-dot.vg-priority-soon { background: #f5a623; }
+.vg-priority-dot.vg-priority-later { background: var(--vg-muted); }
+strong.vg-priority-now { color: #e5484d; }
+strong.vg-priority-soon { color: #f5a623; }
+strong.vg-priority-later { color: var(--vg-muted); }
+
+.vg-kind-badge { background: var(--vg-accent-bg); color: var(--vg-primary); font-size: 0.75rem;
+  padding: 0.1rem 0.5rem; border-radius: 4px; }
+
+.vg-inbox-focus { flex: 0 0 320px; padding: 1.2rem; overflow-y: auto; }
+.vg-focused-label { color: var(--vg-muted); font-size: 0.75rem; letter-spacing: .05em; margin-bottom: 0.4rem; }
+.vg-focus-title { margin: 0 0 0.4rem; }
+.vg-focus-priority { margin: 0.8rem 0; }
+.vg-focus-actions { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;
+  padding-top: 1rem; border-top: 1px solid var(--vg-border); }
+
+.vg-inbox-keys { display: flex; gap: 1.4rem; padding: 0.6rem 1rem; border-top: 1px solid var(--vg-border);
+  color: var(--vg-muted); font-size: 0.85rem; flex: 0 0 auto; }
+
+kbd { background: var(--vg-surface); border: 1px solid var(--vg-border); border-radius: 4px;
+  padding: 0.05rem 0.4rem; font-family: monospace; font-size: 0.85rem; }

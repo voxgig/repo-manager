@@ -4,7 +4,7 @@
 ## (--vg-<token>) by @voxgig/build into web/src/theme.css. Override tokens
 ## per project in web/src/custom.css; add modes via the `theme:modes` hook.
 
-mode: 'light'          # default mode
+mode: 'dark'          # default mode (MOCKUPS.md: dark-first)
 
 modes: {
   light: {

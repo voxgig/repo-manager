@@ -5,6 +5,7 @@
 inbox: {
   in: {
     aim: inbox: {}
+    aim: web: on: inbox: '$': allow: true
   }
 }
 
