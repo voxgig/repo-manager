@@ -39,7 +39,9 @@ module.exports = function forge_github(this: any, options: any) {
   seneca.message('aim:forge,merge:pr,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
     try {
-      const res = await sdk.Pull().update({ owner, repo, pull_number: Number(msg.pr_id), merge_method: msg.merge_method })
+      // $action:'merge' picks the merge point over Pull's plain field-update
+      // point - both share the "update" op since merge has no slot of its own.
+      const res = await sdk.Pull().update({ owner, repo, id: Number(msg.pr_id), $action: 'merge', merge_method: msg.merge_method } as any)
       const data = res.data ? res.data() : res
       return { ok: true, pr: { repo_id: msg.repo_id, id: msg.pr_id, state: data.merged ? 'merged' : 'open' } }
     }
@@ -49,41 +51,46 @@ module.exports = function forge_github(this: any, options: any) {
   })
 
   // issue_id is the issue/PR NUMBER, same convention as pr_id - GitHub
-  // treats every PR as an issue for comments/labels/assignees/state.
+  // treats every PR as an issue for comments/labels/assignees/state. The
+  // guide folds comment/label/assignee into Issue as $action variants
+  // (apidef only resolves 6 bare CRUD op names per entity).
   seneca.message('aim:forge,comment:issue,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
-    const res = await sdk.Comment().create({ owner, repo, issue_number: Number(msg.issue_id), body: msg.body })
+    const res = await sdk.Issue().create({ owner, repo, id: Number(msg.issue_id), $action: 'comment', body: msg.body } as any)
     const data = res.data ? res.data() : res
     return { ok: true, comment: { id: String(data.id), issue_id: msg.issue_id, body: data.body } }
   })
 
   seneca.message('aim:forge,label:issue,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
-    await sdk.Label().create({ owner, repo, issue_number: Number(msg.issue_id), labels: msg.labels } as any)
+    await sdk.Issue().create({ owner, repo, id: Number(msg.issue_id), $action: 'label', labels: msg.labels } as any)
     return { ok: true }
   })
 
   seneca.message('aim:forge,assign:issue,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
-    await sdk.Assignee().create({ owner, repo, issue_number: Number(msg.issue_id), assignees: msg.assignees })
+    await sdk.Issue().create({ owner, repo, id: Number(msg.issue_id), $action: 'assignee', assignees: msg.assignees } as any)
     return { ok: true }
   })
 
   seneca.message('aim:forge,close:issue,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
-    await sdk.Issue().update({ owner, repo, issue_number: Number(msg.issue_id), state: 'closed' } as any)
+    await sdk.Issue().update({ owner, repo, id: Number(msg.issue_id), state: 'closed' } as any)
     return { ok: true }
   })
 
+  // The guide names these by response shape, not by what they do:
+  // PullRequestReview.create() posts an actual review (approve/comment/
+  // request-changes); PullRequestSimple.create() posts a review REQUEST.
   seneca.message('aim:forge,approve:pr,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
-    await sdk.Review().create({ owner, repo, pull_number: Number(msg.pr_id), event: 'APPROVE', body: msg.body } as any)
+    await sdk.PullRequestReview().create({ owner, repo, pull_number: Number(msg.pr_id), event: 'APPROVE', body: msg.body || '' } as any)
     return { ok: true }
   })
 
   seneca.message('aim:forge,request:review,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
-    await sdk.Reviewer().create({ owner, repo, pull_number: Number(msg.pr_id), reviewers: msg.reviewers } as any)
+    await sdk.PullRequestSimple().create({ owner, repo, pull_number: Number(msg.pr_id), reviewers: msg.reviewers } as any)
     return { ok: true }
   })
 
