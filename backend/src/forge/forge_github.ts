@@ -48,6 +48,45 @@ module.exports = function forge_github(this: any, options: any) {
     }
   })
 
+  // issue_id is the issue/PR NUMBER, same convention as pr_id - GitHub
+  // treats every PR as an issue for comments/labels/assignees/state.
+  seneca.message('aim:forge,comment:issue,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    const res = await sdk.Comment().create({ owner, repo, issue_number: Number(msg.issue_id), body: msg.body })
+    const data = res.data ? res.data() : res
+    return { ok: true, comment: { id: String(data.id), issue_id: msg.issue_id, body: data.body } }
+  })
+
+  seneca.message('aim:forge,label:issue,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    await sdk.Label().create({ owner, repo, issue_number: Number(msg.issue_id), labels: msg.labels } as any)
+    return { ok: true }
+  })
+
+  seneca.message('aim:forge,assign:issue,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    await sdk.Assignee().create({ owner, repo, issue_number: Number(msg.issue_id), assignees: msg.assignees })
+    return { ok: true }
+  })
+
+  seneca.message('aim:forge,close:issue,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    await sdk.Issue().update({ owner, repo, issue_number: Number(msg.issue_id), state: 'closed' } as any)
+    return { ok: true }
+  })
+
+  seneca.message('aim:forge,approve:pr,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    await sdk.Review().create({ owner, repo, pull_number: Number(msg.pr_id), event: 'APPROVE', body: msg.body } as any)
+    return { ok: true }
+  })
+
+  seneca.message('aim:forge,request:review,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    await sdk.Reviewer().create({ owner, repo, pull_number: Number(msg.pr_id), reviewers: msg.reviewers } as any)
+    return { ok: true }
+  })
+
   return { name: 'forge_github' }
 }
 
