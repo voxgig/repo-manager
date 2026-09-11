@@ -1,7 +1,8 @@
 // The inbox: Stage 1's one real view (SPEC.REPO-MANAGER.md §12,
-// MOCKUPS.md flow 1). A list + a focus detail panel, driven by j/k/Enter/e,
-// plus a Cmd-K command bar (SPEC §13.4) reaching the three actions that
-// exist at this stage. No undo, no snooze, no campaigns - deliberately shallow.
+// MOCKUPS.md flow 1). A list + a focus detail panel, driven by the SPEC
+// §13.2 key bindings this stage has forge support for (j/k/o/e/a/m/c/l/C),
+// plus a Cmd-K command bar (SPEC §13.4) reaching the same set. No undo,
+// no snooze, no campaigns, no multi-select - deliberately shallow.
 
 import * as Api from '../api.js'
 
@@ -18,6 +19,33 @@ const FLEET_ORGS = ['senecajs', 'tabnas', 'voxgig', 'voxgig-sdk']
 // the eventual nav is visible without faking numbers behind it.
 const INERT_SECTIONS = ['Pull requests', 'Issues', 'Drift', 'Campaigns', 'Runs']
 
+// Composer kinds -> {title, multiline}. label is single-line (Enter sends);
+// comment/close are multi-line (Cmd-Enter sends, matching the spec's "reply"
+// composer convention - plain Enter stays a newline).
+const COMPOSER = {
+  comment: { title: 'Comment', multiline: true },
+  label: { title: 'Label (comma-separated)', multiline: false },
+  close: { title: 'Close - reason (posted as a comment first)', multiline: true },
+}
+
+// List-level key -> handler (SPEC §13.2). `prevent: true` marks the
+// composer-opening keys: without preventDefault the same keypress that
+// opens the composer also lands in the textarea it just focused (keydown
+// runs synchronously before the browser's default "insert this character"
+// step).
+const KEY_ACTIONS = {
+  j: { run: (c) => c.moveFocus(1) },
+  k: { run: (c) => c.moveFocus(-1) },
+  Enter: { run: (c) => c.openFocused() },
+  o: { run: (c) => c.openFocused() },
+  e: { run: (c) => c.dismissFocused() },
+  a: { run: (c) => c.approveFocused() },
+  m: { run: (c) => c.mergeFocused() },
+  c: { prevent: true, run: (c) => c.openComposer('comment') },
+  l: { prevent: true, run: (c) => c.openComposer('label') },
+  C: { prevent: true, run: (c) => c.openComposer('close') },
+}
+
 class VgInbox extends HTMLElement {
   async connectedCallback() {
     this.items = []
@@ -25,6 +53,7 @@ class VgInbox extends HTMLElement {
     this.paletteOpen = false
     this.paletteIndex = 0
     this.statusMsg = ''
+    this.composer = null
     this.onKeydownBound = (ev) => this.onKeydown(ev)
     document.addEventListener('keydown', this.onKeydownBound)
     await this.load()
@@ -49,8 +78,13 @@ class VgInbox extends HTMLElement {
   commands() {
     return [
       { id: 'sync', label: 'sync now', run: () => this.runSync() },
-      { id: 'open', label: 'open', run: () => this.openFocused() },
-      { id: 'done', label: 'done', run: () => this.dismissFocused() },
+      { id: 'open', label: 'open (o)', run: () => this.openFocused() },
+      { id: 'done', label: 'done (e)', run: () => this.dismissFocused() },
+      { id: 'approve', label: 'approve (a)', run: () => this.approveFocused() },
+      { id: 'merge', label: 'merge (m)', run: () => this.mergeFocused() },
+      { id: 'comment', label: 'comment (c)', run: () => this.openComposer('comment') },
+      { id: 'label', label: 'label (l)', run: () => this.openComposer('label') },
+      { id: 'close', label: 'close with reason (C)', run: () => this.openComposer('close') },
     ]
   }
 
@@ -72,24 +106,39 @@ class VgInbox extends HTMLElement {
       return
     }
 
+    if (this.composer) {
+      this.onComposerKeydown(ev)
+      return
+    }
+
     const tag = document.activeElement && document.activeElement.tagName
     if ('INPUT' === tag || 'TEXTAREA' === tag) {
       return
     }
 
-    if ('j' === ev.key) {
-      this.focusIndex = Math.min(this.items.length - 1, this.focusIndex + 1)
-      this.render()
+    const action = KEY_ACTIONS[ev.key]
+    if (action) {
+      if (action.prevent) {
+        ev.preventDefault()
+      }
+      action.run(this)
     }
-    else if ('k' === ev.key) {
-      this.focusIndex = Math.max(0, this.focusIndex - 1)
-      this.render()
+  }
+
+  moveFocus(delta) {
+    this.focusIndex = Math.max(0, Math.min(this.items.length - 1, this.focusIndex + delta))
+    this.render()
+  }
+
+  onComposerKeydown(ev) {
+    const multiline = COMPOSER[this.composer.kind].multiline
+    if ('Escape' === ev.key) {
+      ev.preventDefault()
+      this.closeComposer()
     }
-    else if ('Enter' === ev.key) {
-      this.openFocused()
-    }
-    else if ('e' === ev.key) {
-      this.dismissFocused()
+    else if ('Enter' === ev.key && (!multiline || ev.metaKey || ev.ctrlKey)) {
+      ev.preventDefault()
+      this.submitComposer()
     }
   }
 
@@ -167,6 +216,91 @@ class VgInbox extends HTMLElement {
     this.render()
   }
 
+  // Runs an item intent, surfacing the result as a status message - "A
+  // failed optimistic action must be unmissable" (SPEC §13.3). Drops the
+  // item from the open list when the service reports it done (merge/close
+  // resolve the condition; approve/comment/label leave it open).
+  async runAction(fn, verb) {
+    this.statusMsg = verb + '…'
+    this.render()
+    const res = await fn()
+    if (!res || !res.ok) {
+      this.statusMsg = `${verb} failed: ${(res && res.why) || 'error'}`
+    }
+    else {
+      this.statusMsg = verb
+      if (res.item && 'done' === res.item.state) {
+        const idx = this.items.findIndex((it) => it.id === res.item.id)
+        if (-1 !== idx) {
+          this.items.splice(idx, 1)
+          if (this.focusIndex >= this.items.length) {
+            this.focusIndex = Math.max(0, this.items.length - 1)
+          }
+        }
+      }
+    }
+    this.render()
+    setTimeout(() => {
+      this.statusMsg = ''
+      this.render()
+    }, 4000)
+  }
+
+  async approveFocused() {
+    const item = this.items[this.focusIndex]
+    if (!item) {
+      return
+    }
+    await this.runAction(() => Api.approveItem(item.id), 'approved')
+  }
+
+  async mergeFocused() {
+    const item = this.items[this.focusIndex]
+    if (!item) {
+      return
+    }
+    // Irreversible (SPEC S13) - confirm explicitly (K5) rather than let a
+    // stray keypress merge something.
+    if (!window.confirm(`Merge "${item.title}"? This cannot be undone.`)) {
+      return
+    }
+    await this.runAction(() => Api.mergeItem(item.id), 'merged')
+  }
+
+  openComposer(kind) {
+    if (!this.items[this.focusIndex]) {
+      return
+    }
+    this.composer = { kind, value: '' }
+    this.render()
+  }
+
+  closeComposer() {
+    this.composer = null
+    this.render()
+  }
+
+  async submitComposer() {
+    const item = this.items[this.focusIndex]
+    const { kind, value } = this.composer
+    this.composer = null
+    if (!item || !value.trim()) {
+      this.render()
+      return
+    }
+
+    if ('comment' === kind) {
+      await this.runAction(() => Api.commentItem(item.id, value), 'commented')
+    }
+    else if ('label' === kind) {
+      const labels = value.split(',').map((s) => s.trim()).filter(Boolean)
+      await this.runAction(() => Api.labelItem(item.id, labels), 'labeled')
+    }
+    else if ('close' === kind) {
+      await this.runAction(() => Api.closeItem(item.id, value), 'closed')
+    }
+  }
+
   render() {
     const focused = this.items[this.focusIndex]
 
@@ -202,13 +336,19 @@ class VgInbox extends HTMLElement {
             </div>
             <footer class="vg-inbox-keys">
               <span><kbd>j</kbd><kbd>k</kbd> move</span>
-              <span><kbd>Enter</kbd> open</span>
+              <span><kbd>o</kbd> open</span>
               <span><kbd>e</kbd> done</span>
+              <span><kbd>a</kbd> approve</span>
+              <span><kbd>m</kbd> merge</span>
+              <span><kbd>c</kbd> comment</span>
+              <span><kbd>l</kbd> label</span>
+              <span><kbd>C</kbd> close</span>
               <span><kbd>⌘K</kbd> commands</span>
             </footer>
           </div>
         </div>
         ${this.paletteOpen ? this.renderPalette() : ''}
+        ${this.composer ? this.renderComposer() : ''}
       </div>`
 
     for (const row of this.querySelectorAll('.vg-inbox-row')) {
@@ -247,6 +387,40 @@ class VgInbox extends HTMLElement {
       backdrop.onclick = () => this.togglePalette(false)
       this.querySelector('.vg-palette').onclick = (ev) => ev.stopPropagation()
     }
+
+    if (this.composer) {
+      const input = this.querySelector('.vg-composer-input')
+      input.value = this.composer.value
+      input.oninput = () => {
+        this.composer.value = input.value
+      }
+      input.focus()
+
+      const backdrop = this.querySelector('.vg-composer-backdrop')
+      backdrop.onclick = () => this.closeComposer()
+      this.querySelector('.vg-composer').onclick = (ev) => ev.stopPropagation()
+      this.querySelector('.vg-composer-cancel').onclick = () => this.closeComposer()
+      this.querySelector('.vg-composer-send').onclick = () => this.submitComposer()
+    }
+  }
+
+  renderComposer() {
+    const { kind } = this.composer
+    const { title, multiline } = COMPOSER[kind]
+    return `
+      <div class="vg-composer-backdrop">
+        <div class="vg-composer">
+          <div class="vg-composer-title">${esc(title)}</div>
+          ${multiline
+            ? '<textarea class="vg-composer-input" rows="4"></textarea>'
+            : '<input class="vg-composer-input" />'}
+          <div class="vg-composer-row">
+            <span class="vg-composer-hint">${multiline ? '⌘-Enter to send' : 'Enter to send'} · Esc to cancel</span>
+            <button class="vg-composer-cancel">Cancel</button>
+            <button class="vg-composer-send">Send</button>
+          </div>
+        </div>
+      </div>`
   }
 
   renderPalette() {
@@ -285,8 +459,13 @@ class VgInbox extends HTMLElement {
       <div class="vg-muted">${esc(it.repo || it.org_id || '')}${it.actor ? ' · @' + esc(it.actor) : ''}</div>
       <div class="vg-focus-priority">priority <strong class="vg-priority-${esc(it.priority)}">${esc(it.priority)}</strong></div>
       <div class="vg-focus-actions">
-        <div><kbd>Enter</kbd> open on ${esc(it.source)}</div>
+        <div><kbd>o</kbd> open on ${esc(it.source)}</div>
         <div><kbd>e</kbd> done</div>
+        <div><kbd>a</kbd> approve</div>
+        <div><kbd>m</kbd> merge</div>
+        <div><kbd>c</kbd> comment</div>
+        <div><kbd>l</kbd> label</div>
+        <div><kbd>C</kbd> close with reason</div>
       </div>`
   }
 }

@@ -36,6 +36,22 @@
 .vg-palette-row.vg-focused { background: var(--vg-accent-bg); color: var(--vg-primary); }
 .vg-palette-empty { padding: 0.7rem; color: var(--vg-muted); }
 
+/* ---- item-intent composer (comment/label/close, SPEC §13.2) ---- */
+
+.vg-composer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 50; }
+.vg-composer { width: 480px; max-width: 90vw; background: var(--vg-surface); border: 1px solid var(--vg-border);
+  border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.4); padding: 0.9rem 1rem; }
+.vg-composer-title { font-weight: 700; margin-bottom: 0.5rem; }
+.vg-composer-input { width: 100%; padding: 0.6rem 0.7rem; border: 1px solid var(--vg-border); border-radius: 6px;
+  background: var(--vg-bg); color: var(--vg-text); font: inherit; font-size: 0.95rem; outline: none;
+  resize: vertical; }
+.vg-composer-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.7rem; }
+.vg-composer-hint { color: var(--vg-muted); font-size: 0.8rem; flex: 1; }
+.vg-composer-cancel, .vg-composer-send { border-radius: 6px; padding: 0.35rem 0.8rem; font-size: 0.85rem;
+  border: 1px solid var(--vg-border); background: transparent; color: var(--vg-text); cursor: pointer; }
+.vg-composer-send { background: var(--vg-primary); border-color: var(--vg-primary); color: var(--vg-topbar-fg); }
+
 .vg-inbox-shell { display: flex; flex: 1; min-height: 0; }
 
 .vg-inbox-nav { flex: 0 0 200px; background: var(--vg-surface); border-right: 1px solid var(--vg-border);
