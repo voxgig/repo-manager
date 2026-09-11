@@ -31,7 +31,6 @@
     "@seneca/reload": "0.5.0",
     "@seneca/repl": "9.1.0",
     "@seneca/user": "6.4.0",
-    "@voxgig-sdk/github": "0.0.1",
     "@voxgig/model": "11.0.0",
     "@voxgig/system": "1.15.0",
     "@voxgig/util": "^0.5.4",
