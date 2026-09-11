@@ -143,6 +143,25 @@ describe('inbox', () => {
   })
 
 
+  // Pull requests nav view (list_pull.ts): raw fleet browse, no rpm/item
+  // behind any row - every open PR across the given repos, unfiltered.
+
+  test('list-pull-aggregates-open-prs-across-repos-with-a-repo-scoped-id', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:pr', { repo_ids: ['r1', 'r2'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.prs.length).equal(3)
+
+    const ids = res.prs.map((p: any) => p.id)
+    expect(ids.includes('r1#p1')).true()
+    expect(ids.includes('r2#p2')).true()
+    expect(ids.includes('r2#p3')).true()
+
+    await seneca.close()
+  })
+
+
   // More item kinds (SPEC §12): pr.inbound and pr.stale, both derived from
   // the same list:pr data as pr.review_requested - see ./detect.ts.
 

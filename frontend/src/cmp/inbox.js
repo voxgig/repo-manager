@@ -11,6 +11,7 @@ const KIND_LABEL = {
   'pr.review_requested': 'review',
   'pr.inbound': 'inbound',
   'pr.stale': 'stale',
+  'pr.open': 'open',
 }
 
 // The known fleet (docs/inventory.md) - static until org modeling (Stage 4
@@ -20,7 +21,17 @@ const FLEET_ORGS = ['senecajs', 'tabnas', 'voxgig', 'voxgig-sdk']
 // Sidebar sections with no backing data/message yet at Stage 1 - shown
 // inert (no counts, not clickable) rather than omitted, so the shape of
 // the eventual nav is visible without faking numbers behind it.
-const INERT_SECTIONS = ['Pull requests', 'Issues', 'Drift', 'Campaigns', 'Runs']
+const INERT_SECTIONS = ['Issues', 'Drift', 'Campaigns', 'Runs']
+
+// Real nav views. inbox/snoozed are the derived queue (rpm/item behind
+// every row, full item-intent set available); pulls is a raw fleet browse
+// (SPEC's "Pull requests" - every open PR, no rpm/item, read-only: open on
+// the forge and search, nothing else, since there's no item to act on).
+const VIEWS = {
+  inbox: { title: 'Inbox', itemActions: true },
+  snoozed: { title: 'Snoozed', itemActions: true },
+  pulls: { title: 'Pull requests', itemActions: false },
+}
 
 // Composer kinds. Text kinds (title, multiline) render an input/textarea -
 // label is single-line (Enter sends), comment/close are multi-line
@@ -87,13 +98,41 @@ class VgInbox extends HTMLElement {
   }
 
   async load() {
-    this.items = await Api.listInbox(this.viewState())
-    // now < soon < later, then most recently updated first within a tier.
-    const rank = { now: 0, soon: 1, later: 2 }
-    this.items.sort((a, b) =>
-      (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) || (b.updated_at || 0) - (a.updated_at || 0))
+    if ('pulls' === this.view) {
+      // Already sorted server-side (most recently updated first) - no
+      // priority to rank by on a plain browse list.
+      this.items = await Api.listPulls()
+    }
+    else {
+      this.items = await Api.listInbox(this.viewState())
+      // now < soon < later, then most recently updated first within a tier.
+      const rank = { now: 0, soon: 1, later: 2 }
+      this.items.sort((a, b) =>
+        (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) || (b.updated_at || 0) - (a.updated_at || 0))
+    }
     this.clampFocus()
     this.render()
+  }
+
+  itemActionsAvailable() {
+    return VIEWS[this.view].itemActions
+  }
+
+  // Guards every item-intent entry point - a raw Pull requests row has no
+  // rpm/item behind it, so there's nothing for approve/merge/comment/label/
+  // close/snooze/done to act on. Surfaces why, rather than firing a request
+  // that can only ever come back not-found.
+  requireItemActions() {
+    if (this.itemActionsAvailable()) {
+      return true
+    }
+    this.statusMsg = `not available in ${VIEWS[this.view].title} - browse only`
+    this.render()
+    setTimeout(() => {
+      this.statusMsg = ''
+      this.render()
+    }, 2500)
+    return false
   }
 
   async switchView(view) {
@@ -128,6 +167,7 @@ class VgInbox extends HTMLElement {
       { id: 'sync', label: 'sync now', run: () => this.runSync() },
       { id: 'view-inbox', label: 'view: inbox', run: () => this.switchView('inbox') },
       { id: 'view-snoozed', label: 'view: snoozed', run: () => this.switchView('snoozed') },
+      { id: 'view-pulls', label: 'view: pull requests', run: () => this.switchView('pulls') },
       { id: 'open', label: 'open (o)', run: () => this.openFocused() },
       { id: 'done', label: 'done (e)', run: () => this.dismissFocused() },
       { id: 'approve', label: 'approve (a)', run: () => this.approveFocused() },
@@ -261,6 +301,9 @@ class VgInbox extends HTMLElement {
   }
 
   async dismissFocused() {
+    if (!this.requireItemActions()) {
+      return
+    }
     const item = this.visibleItems()[this.focusIndex]
     if (!item) {
       return
@@ -306,6 +349,9 @@ class VgInbox extends HTMLElement {
   }
 
   async approveFocused() {
+    if (!this.requireItemActions()) {
+      return
+    }
     const item = this.visibleItems()[this.focusIndex]
     if (!item) {
       return
@@ -314,6 +360,9 @@ class VgInbox extends HTMLElement {
   }
 
   async mergeFocused() {
+    if (!this.requireItemActions()) {
+      return
+    }
     const item = this.visibleItems()[this.focusIndex]
     if (!item) {
       return
@@ -327,6 +376,9 @@ class VgInbox extends HTMLElement {
   }
 
   openComposer(kind) {
+    if (!this.requireItemActions()) {
+      return
+    }
     if (!this.visibleItems()[this.focusIndex]) {
       return
     }
@@ -380,7 +432,8 @@ class VgInbox extends HTMLElement {
 
     const items = this.visibleItems()
     const focused = items[this.focusIndex]
-    const viewTitle = 'snoozed' === this.view ? 'Snoozed' : 'Inbox'
+    const viewTitle = VIEWS[this.view].title
+    const showActions = this.itemActionsAvailable()
 
     this.innerHTML = `
       <div class="vg-inbox">
@@ -395,12 +448,10 @@ class VgInbox extends HTMLElement {
         </header>
         <div class="vg-inbox-shell">
           <nav class="vg-inbox-nav">
-            <div class="vg-nav-item${'inbox' === this.view ? ' vg-nav-active' : ''}" data-view="inbox">
-              Inbox ${'inbox' === this.view ? `<span class="vg-nav-count">${items.length}</span>` : ''}
-            </div>
-            <div class="vg-nav-item${'snoozed' === this.view ? ' vg-nav-active' : ''}" data-view="snoozed">
-              Snoozed ${'snoozed' === this.view ? `<span class="vg-nav-count">${items.length}</span>` : ''}
-            </div>
+            ${Object.keys(VIEWS).map((v) => `
+              <div class="vg-nav-item${v === this.view ? ' vg-nav-active' : ''}" data-view="${v}">
+                ${esc(VIEWS[v].title)} ${v === this.view ? `<span class="vg-nav-count">${items.length}</span>` : ''}
+              </div>`).join('')}
             ${INERT_SECTIONS.map((s) => `<div class="vg-nav-item vg-nav-inert">${esc(s)}</div>`).join('')}
             <div class="vg-nav-group-title">Fleet</div>
             ${FLEET_ORGS.map((o) => `<div class="vg-nav-item vg-nav-inert">${esc(o)}</div>`).join('')}
@@ -423,13 +474,14 @@ class VgInbox extends HTMLElement {
             <footer class="vg-inbox-keys">
               <span><kbd>j</kbd><kbd>k</kbd> move</span>
               <span><kbd>o</kbd> open</span>
-              <span><kbd>e</kbd> done</span>
-              <span><kbd>a</kbd> approve</span>
-              <span><kbd>m</kbd> merge</span>
-              <span><kbd>c</kbd> comment</span>
-              <span><kbd>l</kbd> label</span>
-              <span><kbd>C</kbd> close</span>
-              <span><kbd>s</kbd> snooze</span>
+              ${showActions ? `
+                <span><kbd>e</kbd> done</span>
+                <span><kbd>a</kbd> approve</span>
+                <span><kbd>m</kbd> merge</span>
+                <span><kbd>c</kbd> comment</span>
+                <span><kbd>l</kbd> label</span>
+                <span><kbd>C</kbd> close</span>
+                <span><kbd>s</kbd> snooze</span>` : ''}
               <span><kbd>/</kbd> search</span>
               <span><kbd>⌘K</kbd> commands</span>
             </footer>
@@ -587,7 +639,7 @@ class VgInbox extends HTMLElement {
   renderRow(it, i) {
     return `
       <div class="vg-inbox-row${i === this.focusIndex ? ' vg-focused' : ''}" data-i="${i}">
-        <span class="vg-priority-dot vg-priority-${esc(it.priority)}"></span>
+        <span class="vg-priority-dot vg-priority-${esc(it.priority || 'none')}"></span>
         <span class="vg-kind-badge">${esc(kindLabel(it.kind))}</span>
         <span class="vg-inbox-repo">${esc(it.repo || it.org_id || '')}</span>
         <span class="vg-inbox-title">${esc(it.title)}</span>
@@ -596,23 +648,27 @@ class VgInbox extends HTMLElement {
   }
 
   renderFocus(it) {
+    const showActions = this.itemActionsAvailable()
     return `
       <div class="vg-focused-label">FOCUSED</div>
       <h3 class="vg-focus-title">${esc(it.title)}</h3>
       <div class="vg-muted">${esc(it.repo || it.org_id || '')}${it.actor ? ' · @' + esc(it.actor) : ''}</div>
-      <div class="vg-focus-priority">priority <strong class="vg-priority-${esc(it.priority)}">${esc(it.priority)}</strong></div>
+      ${it.priority
+        ? `<div class="vg-focus-priority">priority <strong class="vg-priority-${esc(it.priority)}">${esc(it.priority)}</strong></div>`
+        : ''}
       ${it.state === 'snoozed' && it.snooze_until
         ? `<div class="vg-muted">snoozed until ${new Date(it.snooze_until).toLocaleString()}</div>`
         : ''}
       <div class="vg-focus-actions">
         <div><kbd>o</kbd> open on ${esc(it.source)}</div>
-        <div><kbd>e</kbd> done</div>
-        <div><kbd>a</kbd> approve</div>
-        <div><kbd>m</kbd> merge</div>
-        <div><kbd>c</kbd> comment</div>
-        <div><kbd>l</kbd> label</div>
-        <div><kbd>C</kbd> close with reason</div>
-        <div><kbd>s</kbd> snooze</div>
+        ${showActions ? `
+          <div><kbd>e</kbd> done</div>
+          <div><kbd>a</kbd> approve</div>
+          <div><kbd>m</kbd> merge</div>
+          <div><kbd>c</kbd> comment</div>
+          <div><kbd>l</kbd> label</div>
+          <div><kbd>C</kbd> close with reason</div>
+          <div><kbd>s</kbd> snooze</div>` : ''}
       </div>`
   }
 }

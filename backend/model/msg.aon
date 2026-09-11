@@ -39,6 +39,10 @@
   { pat: [{aim: inbox}, {list: item}] }
   { pat: [{aim: inbox}, {dismiss: item}] }
 
+  # Raw fleet browse (Pull requests nav view) - every open PR, not the
+  # derived queue. No rpm/item behind these; read-only in the UI.
+  { pat: [{aim: inbox}, {list: pr}] }
+
   # ---- item intents (SPEC §13.2 key bindings) -----------------------------
   # App-nouned, act on the WorkItem; each translates to the forge message(s)
   # below behind the gateway - the browser never posts aim:forge,* directly.
@@ -59,6 +63,7 @@
   { pat: [{aim: web}, {on: inbox}, {label: item}], file: './web_label_item' }
   { pat: [{aim: web}, {on: inbox}, {close: item}], file: './web_close_item' }
   { pat: [{aim: web}, {on: inbox}, {snooze: item}], file: './web_snooze_item' }
+  { pat: [{aim: web}, {on: inbox}, {list: pr}], file: './web_list_pr' }
 
 ]
 

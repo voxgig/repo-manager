@@ -88,6 +88,12 @@ async function syncNow() {
   return bus.post({ aim: 'web', on: 'inbox', sync: 'item' })
 }
 
+// Pull requests nav view: raw fleet browse, not the derived queue.
+async function listPulls() {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'pr' })
+  return (r && r.ok && r.prs) || []
+}
+
 // Item intents (SPEC §13.2) - each translates to a forge call behind the
 // gateway; the browser only ever posts the app-nouned aim:web,on:inbox,*.
 
@@ -124,6 +130,7 @@ export {
   listInbox,
   dismissItem,
   syncNow,
+  listPulls,
   approveItem,
   mergeItem,
   commentItem,
