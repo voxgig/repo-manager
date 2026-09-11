@@ -75,8 +75,8 @@ async function revokeApikey(id) {
 
 // ---- inbox (SPEC.REPO-MANAGER.md §12) ------------------------------------
 
-async function listInbox() {
-  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'item' })
+async function listInbox(state) {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'item', state })
   return (r && r.ok && r.items) || []
 }
 
@@ -111,6 +111,10 @@ async function closeItem(id, reason) {
   return bus.post({ aim: 'web', on: 'inbox', close: 'item', id, reason })
 }
 
+async function snoozeItem(id, until) {
+  return bus.post({ aim: 'web', on: 'inbox', snooze: 'item', id, until })
+}
+
 export {
   list,
   load,
@@ -125,6 +129,7 @@ export {
   commentItem,
   labelItem,
   closeItem,
+  snoozeItem,
   loadAuth,
   signin,
   signout,

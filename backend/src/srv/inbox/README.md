@@ -17,6 +17,7 @@ message maps to the action file named after its last pattern pair.
 | `aim:inbox,comment:item` | `comment_item.ts` |
 | `aim:inbox,label:item` | `label_item.ts` |
 | `aim:inbox,close:item` | `close_item.ts` |
+| `aim:inbox,snooze:item` | `snooze_item.ts` |
 | `aim:web,on:inbox,sync:item` | `web_sync_item.ts` |
 | `aim:web,on:inbox,list:item` | `web_list_item.ts` |
 | `aim:web,on:inbox,dismiss:item` | `web_dismiss_item.ts` |
@@ -25,6 +26,7 @@ message maps to the action file named after its last pattern pair.
 | `aim:web,on:inbox,comment:item` | `web_comment_item.ts` |
 | `aim:web,on:inbox,label:item` | `web_label_item.ts` |
 | `aim:web,on:inbox,close:item` | `web_close_item.ts` |
+| `aim:web,on:inbox,snooze:item` | `web_snooze_item.ts` |
 
 ## Flow
 
@@ -39,6 +41,7 @@ flowchart LR
   srv --> comment_item["aim:inbox,comment:item<br>comment_item.ts"]
   srv --> label_item["aim:inbox,label:item<br>label_item.ts"]
   srv --> close_item["aim:inbox,close:item<br>close_item.ts"]
+  srv --> snooze_item["aim:inbox,snooze:item<br>snooze_item.ts"]
   srv --> web_sync_item["aim:web,on:inbox,sync:item<br>web_sync_item.ts"]
   srv --> web_list_item["aim:web,on:inbox,list:item<br>web_list_item.ts"]
   srv --> web_dismiss_item["aim:web,on:inbox,dismiss:item<br>web_dismiss_item.ts"]
@@ -47,6 +50,7 @@ flowchart LR
   srv --> web_comment_item["aim:web,on:inbox,comment:item<br>web_comment_item.ts"]
   srv --> web_label_item["aim:web,on:inbox,label:item<br>web_label_item.ts"]
   srv --> web_close_item["aim:web,on:inbox,close:item<br>web_close_item.ts"]
+  srv --> web_snooze_item["aim:web,on:inbox,snooze:item<br>web_snooze_item.ts"]
 ```
 
 Message params are validated from the model (gubu); see

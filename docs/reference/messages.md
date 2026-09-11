@@ -30,6 +30,7 @@ flowchart LR
 | `aim:inbox,comment:item` | `src/srv/inbox/comment_item.ts` |
 | `aim:inbox,label:item` | `src/srv/inbox/label_item.ts` |
 | `aim:inbox,close:item` | `src/srv/inbox/close_item.ts` |
+| `aim:inbox,snooze:item` | `src/srv/inbox/snooze_item.ts` |
 | `aim:web,on:inbox,sync:item` | `src/srv/inbox/web_sync_item.ts` |
 | `aim:web,on:inbox,list:item` | `src/srv/inbox/web_list_item.ts` |
 | `aim:web,on:inbox,dismiss:item` | `src/srv/inbox/web_dismiss_item.ts` |
@@ -38,3 +39,4 @@ flowchart LR
 | `aim:web,on:inbox,comment:item` | `src/srv/inbox/web_comment_item.ts` |
 | `aim:web,on:inbox,label:item` | `src/srv/inbox/web_label_item.ts` |
 | `aim:web,on:inbox,close:item` | `src/srv/inbox/web_close_item.ts` |
+| `aim:web,on:inbox,snooze:item` | `src/srv/inbox/web_snooze_item.ts` |

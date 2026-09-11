@@ -48,6 +48,7 @@
   { pat: [{aim: inbox}, {comment: item}] }
   { pat: [{aim: inbox}, {label: item}] }
   { pat: [{aim: inbox}, {close: item}] }
+  { pat: [{aim: inbox}, {snooze: item}] }
 
   { pat: [{aim: web}, {on: inbox}, {sync: item}], file: './web_sync_item' }
   { pat: [{aim: web}, {on: inbox}, {list: item}], file: './web_list_item' }
@@ -57,6 +58,7 @@
   { pat: [{aim: web}, {on: inbox}, {comment: item}], file: './web_comment_item' }
   { pat: [{aim: web}, {on: inbox}, {label: item}], file: './web_label_item' }
   { pat: [{aim: web}, {on: inbox}, {close: item}], file: './web_close_item' }
+  { pat: [{aim: web}, {on: inbox}, {snooze: item}], file: './web_snooze_item' }
 
 ]
 

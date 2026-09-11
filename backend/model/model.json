@@ -356,6 +356,16 @@
         ]
       },
       {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "snooze": "item"
+          }
+        ]
+      },
+      {
         "file": "./web_sync_item",
         "pat": [
           {
@@ -464,6 +474,20 @@
           },
           {
             "close": "item"
+          }
+        ]
+      },
+      {
+        "file": "./web_snooze_item",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "snooze": "item"
           }
         ]
       }

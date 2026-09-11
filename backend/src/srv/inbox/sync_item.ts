@@ -1,12 +1,14 @@
-// Stage 1's one item kind: pr.review_requested. Polls the given repos via
-// aim:forge,list:pr and stores one rpm/item per open PR that requests
-// for_user as a reviewer - condition -> item, per SPEC §12.1:
+// Polls the given repos via aim:forge,list:pr, runs every PR detector
+// (./detect.ts) over each PR, and stores one rpm/item per condition found -
+// condition -> item, per SPEC §12.1:
 //   no item, condition present  -> create
 //   item exists, digest same    -> no-op
 //   item exists, digest changed -> update (reopen if it was done)
 //   item exists, condition gone -> auto-resolve (remove; "no undo" yet)
 
 import * as crypto from 'crypto'
+
+const { PR_DETECTORS, priorityFor } = require('./detect')
 
 module.exports = function make_sync_item() {
   return async function sync_item(this: any, msg: any) {
@@ -15,7 +17,6 @@ module.exports = function make_sync_item() {
     const repo_ids: string[] = msg.repo_ids || []
     const forge: string = msg.forge || 'github'
     const for_user: string = msg.for_user
-    const kind = 'pr.review_requested'
 
     const seen = new Set<string>()
     let created = 0
@@ -28,49 +29,67 @@ module.exports = function make_sync_item() {
       const org_id = repo_id.split('/')[0]
 
       for (const pr of res.prs) {
-        const reviewers: string[] = pr.requested_reviewers || []
-        if (!reviewers.includes(for_user)) continue
+        for (const detect of PR_DETECTORS) {
+          const cond = detect(pr, for_user)
+          if (!cond) continue
 
-        const subject_id = pr.id
-        seen.add([org_id, forge, kind, repo_id, subject_id].join('|'))
+          seen.add([org_id, forge, cond.kind, repo_id, cond.subject_id].join('|'))
 
-        const digest = crypto.createHash('sha256')
-          .update(JSON.stringify({ title: pr.title, state: pr.state, reviewers }))
-          .digest('hex')
+          const digest = crypto.createHash('sha256').update(JSON.stringify(cond.facts)).digest('hex')
+          const now = Date.now()
+          const existing = (await seneca.entity('rpm/item').list$({
+            org_id, source: forge, kind: cond.kind, repo: repo_id, subject_id: cond.subject_id,
+          }))[0]
 
-        const now = Date.now()
-        const existing = (await seneca.entity('rpm/item').list$({
-          org_id, source: forge, kind, repo: repo_id, subject_id,
-        }))[0]
-
-        if (!existing) {
-          await seneca.entity('rpm/item').data$({
-            org_id, source: forge, repo: repo_id, kind,
-            title: pr.title, url: pr.url, actor: pr.author, subject_id,
-            priority: 'now', state: 'open',
-            first_seen: now, updated_at: pr.updated_at || now,
-            digest, payload: { requested_reviewers: reviewers },
-          }).save$()
-          created++
-        }
-        else if (existing.digest !== digest) {
-          existing.title = pr.title
-          existing.updated_at = pr.updated_at || now
-          existing.digest = digest
-          if ('done' === existing.state) {
-            existing.state = 'open'
+          if (!existing) {
+            await seneca.entity('rpm/item').data$({
+              org_id, source: forge, repo: repo_id, kind: cond.kind,
+              title: cond.title, url: cond.url, actor: cond.actor, subject_id: cond.subject_id,
+              priority: priorityFor(cond.kind), state: 'open',
+              first_seen: now, updated_at: cond.updated_at || now,
+              digest, payload: cond.payload,
+            }).save$()
+            created++
           }
-          await existing.save$()
-          updated++
+          else {
+            let dirty = false
+
+            if (existing.digest !== digest) {
+              existing.title = cond.title
+              existing.updated_at = cond.updated_at || now
+              existing.digest = digest
+              dirty = true
+              if ('done' === existing.state) {
+                existing.state = 'open'
+              }
+            }
+
+            // Snoozed -> Open once `until` passes, regardless of digest -
+            // the condition is still true, so the wake is unconditional.
+            if ('snoozed' === existing.state && now >= (existing.snooze_until || 0)) {
+              existing.state = 'open'
+              existing.snooze_until = undefined
+              dirty = true
+            }
+
+            if (dirty) {
+              await existing.save$()
+              updated++
+            }
+          }
         }
       }
     }
 
-    // Auto-resolve: open items in this sync's scope whose condition wasn't
-    // seen this pass - the PR merged, closed, or the review was withdrawn.
+    // Auto-resolve: open OR snoozed items in this sync's scope whose
+    // condition wasn't seen this pass - the PR merged, closed, went
+    // stale->fresh, or the review request was withdrawn. Snoozed items
+    // resolve just as silently (SPEC §12.1's state machine): a snooze is a
+    // "not now", not a promise the condition survives until it wakes.
     const open_items = await seneca.entity('rpm/item').list$({ state: 'open' })
+    const snoozed_items = await seneca.entity('rpm/item').list$({ state: 'snoozed' })
     let resolved = 0
-    for (const item of open_items) {
+    for (const item of [...open_items, ...snoozed_items]) {
       if (!repo_ids.includes(item.repo)) continue
       const key = [item.org_id, item.source, item.kind, item.repo, item.subject_id].join('|')
       if (!seen.has(key)) {
