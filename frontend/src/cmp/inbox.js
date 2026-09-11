@@ -28,6 +28,24 @@ const COMPOSER = {
   close: { title: 'Close - reason (posted as a comment first)', multiline: true },
 }
 
+// List-level key -> handler (SPEC §13.2). `prevent: true` marks the
+// composer-opening keys: without preventDefault the same keypress that
+// opens the composer also lands in the textarea it just focused (keydown
+// runs synchronously before the browser's default "insert this character"
+// step).
+const KEY_ACTIONS = {
+  j: { run: (c) => c.moveFocus(1) },
+  k: { run: (c) => c.moveFocus(-1) },
+  Enter: { run: (c) => c.openFocused() },
+  o: { run: (c) => c.openFocused() },
+  e: { run: (c) => c.dismissFocused() },
+  a: { run: (c) => c.approveFocused() },
+  m: { run: (c) => c.mergeFocused() },
+  c: { prevent: true, run: (c) => c.openComposer('comment') },
+  l: { prevent: true, run: (c) => c.openComposer('label') },
+  C: { prevent: true, run: (c) => c.openComposer('close') },
+}
+
 class VgInbox extends HTMLElement {
   async connectedCallback() {
     this.items = []
@@ -98,42 +116,18 @@ class VgInbox extends HTMLElement {
       return
     }
 
-    if ('j' === ev.key) {
-      this.focusIndex = Math.min(this.items.length - 1, this.focusIndex + 1)
-      this.render()
+    const action = KEY_ACTIONS[ev.key]
+    if (action) {
+      if (action.prevent) {
+        ev.preventDefault()
+      }
+      action.run(this)
     }
-    else if ('k' === ev.key) {
-      this.focusIndex = Math.max(0, this.focusIndex - 1)
-      this.render()
-    }
-    else if ('Enter' === ev.key || 'o' === ev.key) {
-      this.openFocused()
-    }
-    else if ('e' === ev.key) {
-      this.dismissFocused()
-    }
-    else if ('a' === ev.key) {
-      this.approveFocused()
-    }
-    else if ('m' === ev.key) {
-      this.mergeFocused()
-    }
-    // preventDefault on the composer-opening keys: without it, the same
-    // keypress that opens the composer also lands in the textarea it just
-    // focused (keydown runs synchronously before the browser's default
-    // "insert this character" step).
-    else if ('c' === ev.key) {
-      ev.preventDefault()
-      this.openComposer('comment')
-    }
-    else if ('l' === ev.key) {
-      ev.preventDefault()
-      this.openComposer('label')
-    }
-    else if ('C' === ev.key) {
-      ev.preventDefault()
-      this.openComposer('close')
-    }
+  }
+
+  moveFocus(delta) {
+    this.focusIndex = Math.max(0, Math.min(this.items.length - 1, this.focusIndex + delta))
+    this.render()
   }
 
   onComposerKeydown(ev) {
