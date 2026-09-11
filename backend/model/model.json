@@ -161,6 +161,16 @@
             "aim": "forge"
           },
           {
+            "list": "issue"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "forge"
+          },
+          {
             "open": "pr"
           }
         ]
@@ -312,6 +322,16 @@
           },
           {
             "list": "pr"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "list": "issue"
           }
         ]
       },
@@ -502,7 +522,7 @@
         ]
       },
       {
-        "file": "./web_list_pull",
+        "file": "./web_list_pr",
         "pat": [
           {
             "aim": "web"
@@ -512,6 +532,20 @@
           },
           {
             "list": "pr"
+          }
+        ]
+      },
+      {
+        "file": "./web_list_issue",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "list": "issue"
           }
         ]
       }

@@ -88,10 +88,15 @@ async function syncNow() {
   return bus.post({ aim: 'web', on: 'inbox', sync: 'item' })
 }
 
-// Pull requests nav view: raw fleet browse, not the derived queue.
+// Pull requests / Issues nav views: raw fleet browse, not the derived queue.
 async function listPulls() {
   const r = await bus.post({ aim: 'web', on: 'inbox', list: 'pr' })
   return (r && r.ok && r.prs) || []
+}
+
+async function listIssues() {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'issue' })
+  return (r && r.ok && r.issues) || []
 }
 
 // Item intents (SPEC §13.2) - each translates to a forge call behind the
@@ -131,6 +136,7 @@ export {
   dismissItem,
   syncNow,
   listPulls,
+  listIssues,
   approveItem,
   mergeItem,
   commentItem,

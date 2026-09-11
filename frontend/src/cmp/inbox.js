@@ -12,6 +12,7 @@ const KIND_LABEL = {
   'pr.inbound': 'inbound',
   'pr.stale': 'stale',
   'pr.open': 'open',
+  'issue.open': 'open',
 }
 
 // The known fleet (docs/inventory.md) - static until org modeling (Stage 4
@@ -21,16 +22,25 @@ const FLEET_ORGS = ['senecajs', 'tabnas', 'voxgig', 'voxgig-sdk']
 // Sidebar sections with no backing data/message yet at Stage 1 - shown
 // inert (no counts, not clickable) rather than omitted, so the shape of
 // the eventual nav is visible without faking numbers behind it.
-const INERT_SECTIONS = ['Issues', 'Drift', 'Campaigns', 'Runs']
+const INERT_SECTIONS = ['Drift', 'Campaigns', 'Runs']
 
 // Real nav views. inbox/snoozed are the derived queue (rpm/item behind
-// every row, full item-intent set available); pulls is a raw fleet browse
-// (SPEC's "Pull requests" - every open PR, no rpm/item, read-only: open on
-// the forge and search, nothing else, since there's no item to act on).
+// every row, full item-intent set available); pulls/issues are raw fleet
+// browses (SPEC's "Pull requests"/"Issues" - every open PR or issue, no
+// rpm/item, read-only: open on the forge and search, nothing else, since
+// there's no item to act on).
 const VIEWS = {
   inbox: { title: 'Inbox', itemActions: true },
   snoozed: { title: 'Snoozed', itemActions: true },
   pulls: { title: 'Pull requests', itemActions: false },
+  issues: { title: 'Issues', itemActions: false },
+}
+
+// Views with no priority to rank by - load() calls these instead of
+// Api.listInbox(state) and skips the priority sort.
+const BROWSE_LOADERS = {
+  pulls: () => Api.listPulls(),
+  issues: () => Api.listIssues(),
 }
 
 // Composer kinds. Text kinds (title, multiline) render an input/textarea -
@@ -98,10 +108,11 @@ class VgInbox extends HTMLElement {
   }
 
   async load() {
-    if ('pulls' === this.view) {
+    const browse = BROWSE_LOADERS[this.view]
+    if (browse) {
       // Already sorted server-side (most recently updated first) - no
       // priority to rank by on a plain browse list.
-      this.items = await Api.listPulls()
+      this.items = await browse()
     }
     else {
       this.items = await Api.listInbox(this.viewState())
