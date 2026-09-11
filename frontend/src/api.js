@@ -88,6 +88,29 @@ async function syncNow() {
   return bus.post({ aim: 'web', on: 'inbox', sync: 'item' })
 }
 
+// Item intents (SPEC §13.2) - each translates to a forge call behind the
+// gateway; the browser only ever posts the app-nouned aim:web,on:inbox,*.
+
+async function approveItem(id, body) {
+  return bus.post({ aim: 'web', on: 'inbox', approve: 'item', id, body })
+}
+
+async function mergeItem(id, merge_method) {
+  return bus.post({ aim: 'web', on: 'inbox', merge: 'item', id, merge_method })
+}
+
+async function commentItem(id, body) {
+  return bus.post({ aim: 'web', on: 'inbox', comment: 'item', id, body })
+}
+
+async function labelItem(id, labels) {
+  return bus.post({ aim: 'web', on: 'inbox', label: 'item', id, labels })
+}
+
+async function closeItem(id, reason) {
+  return bus.post({ aim: 'web', on: 'inbox', close: 'item', id, reason })
+}
+
 export {
   list,
   load,
@@ -97,6 +120,11 @@ export {
   listInbox,
   dismissItem,
   syncNow,
+  approveItem,
+  mergeItem,
+  commentItem,
+  labelItem,
+  closeItem,
   loadAuth,
   signin,
   signout,
