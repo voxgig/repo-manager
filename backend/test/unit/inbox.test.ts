@@ -143,10 +143,11 @@ describe('inbox', () => {
   })
 
 
-  // Pull requests nav view (list_pull.ts): raw fleet browse, no rpm/item
-  // behind any row - every open PR across the given repos, unfiltered.
+  // Pull requests / Issues nav views (list_pr.ts / list_issue.ts): raw
+  // fleet browse, no rpm/item behind any row - every open PR/issue across
+  // the given repos, unfiltered.
 
-  test('list-pull-aggregates-open-prs-across-repos-with-a-repo-scoped-id', async () => {
+  test('list-pr-aggregates-open-prs-across-repos-with-a-repo-scoped-id', async () => {
     const seneca = await makeSeneca()
 
     const res = await seneca.post('aim:inbox,list:pr', { repo_ids: ['r1', 'r2'], forge: 'mem' })
@@ -157,6 +158,19 @@ describe('inbox', () => {
     expect(ids.includes('r1#p1')).true()
     expect(ids.includes('r2#p2')).true()
     expect(ids.includes('r2#p3')).true()
+
+    await seneca.close()
+  })
+
+
+  test('list-issue-aggregates-open-issues-across-repos-with-a-repo-scoped-id', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:issue', { repo_ids: ['r1'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.issues.length).equal(1)
+    expect(res.issues[0].id).equal('r1#i1')
+    expect(res.issues[0].kind).equal('issue.open')
 
     await seneca.close()
   })

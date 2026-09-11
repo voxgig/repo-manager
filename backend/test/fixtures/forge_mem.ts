@@ -25,6 +25,10 @@ module.exports = function forge_mem(this: any) {
     },
   }
 
+  const issues: any = {
+    'i1': { id: 'i1', repo_id: 'r1', title: 'A real issue', state: 'open', url: 'https://example.com/r1/issues/1', author: 'someone', assignees: [], updated_at: Date.now() },
+  }
+
   const alerts: any = {
     'a1': { id: 'a1', repo_id: 'r1', severity: 'high', dismissed: false },
   }
@@ -38,6 +42,13 @@ module.exports = function forge_mem(this: any) {
     return {
       ok: true,
       prs: Object.values(prs).filter((p: any) => p.repo_id === msg.repo_id && 'open' === p.state),
+    }
+  })
+
+  seneca.message('aim:forge,list:issue,forge:mem', async function (msg: any) {
+    return {
+      ok: true,
+      issues: Object.values(issues).filter((i: any) => i.repo_id === msg.repo_id && 'open' === i.state),
     }
   })
 

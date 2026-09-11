@@ -19,6 +19,18 @@ module.exports = function forge_github(this: any, options: any) {
     }
   })
 
+  // GitHub's bare issues list includes pull requests (each carries a
+  // pull_request field when it's really one) - filtered out here so callers
+  // only ever see true issues, matching list:pr's own scope.
+  seneca.message('aim:forge,list:issue,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    const list = await this.entity('provider/github/issue').list$({ owner, repo })
+    return {
+      ok: true,
+      issues: list.filter((it: any) => !it.pull_request).map((it: any) => normalizeIssue(it, msg.repo_id)),
+    }
+  })
+
   // pr_id is the PR NUMBER (not GitHub's internal id) - it's what merge/open
   // and every other follow-up action actually need on the wire, and it's
   // the same number a human sees in the PR's URL.
@@ -111,5 +123,18 @@ function normalizePr(pr: any, repo_id: string) {
     author: pr.user?.login,
     requested_reviewers: (pr.requested_reviewers || []).map((r: any) => r.login),
     updated_at: pr.updated_at ? Date.parse(pr.updated_at) : undefined,
+  }
+}
+
+function normalizeIssue(issue: any, repo_id: string) {
+  return {
+    id: String(issue.number),
+    repo_id,
+    title: issue.title,
+    state: issue.state,
+    url: issue.html_url,
+    author: issue.user?.login,
+    assignees: (issue.assignees || []).map((a: any) => a.login),
+    updated_at: issue.updated_at ? Date.parse(issue.updated_at) : undefined,
   }
 }

@@ -18,6 +18,7 @@
   # specialises. No service ever branches on which forge answers these.
 
   { pat: [{aim: forge}, {list: pr}] }
+  { pat: [{aim: forge}, {list: issue}] }
   { pat: [{aim: forge}, {open: pr}] }
   { pat: [{aim: forge}, {comment: issue}] }
   { pat: [{aim: forge}, {label: issue}] }
@@ -39,9 +40,11 @@
   { pat: [{aim: inbox}, {list: item}] }
   { pat: [{aim: inbox}, {dismiss: item}] }
 
-  # Raw fleet browse (Pull requests nav view) - every open PR, not the
-  # derived queue. No rpm/item behind these; read-only in the UI.
+  # Raw fleet browse (Pull requests / Issues nav views) - every open PR or
+  # issue, not the derived queue. No rpm/item behind these; read-only in
+  # the UI.
   { pat: [{aim: inbox}, {list: pr}] }
+  { pat: [{aim: inbox}, {list: issue}] }
 
   # ---- item intents (SPEC §13.2 key bindings) -----------------------------
   # App-nouned, act on the WorkItem; each translates to the forge message(s)
@@ -64,6 +67,7 @@
   { pat: [{aim: web}, {on: inbox}, {close: item}], file: './web_close_item' }
   { pat: [{aim: web}, {on: inbox}, {snooze: item}], file: './web_snooze_item' }
   { pat: [{aim: web}, {on: inbox}, {list: pr}], file: './web_list_pr' }
+  { pat: [{aim: web}, {on: inbox}, {list: issue}], file: './web_list_issue' }
 
 ]
 
