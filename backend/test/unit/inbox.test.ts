@@ -138,4 +138,90 @@ describe('inbox', () => {
     await seneca.close()
   })
 
+
+  // Item intents (SPEC §13.2): app-nouned messages that translate to
+  // aim:forge,*,forge:mem behind the gateway. forge:mem's p1/r1 fixture
+  // (test/fixtures/forge_mem.ts) backs every one of these.
+
+  test('approve-item-calls-forge-and-leaves-item-open', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const approved = await seneca.post('aim:inbox,approve:item', { id })
+    expect(approved.ok).true()
+    expect(approved.item.state).equal('open')
+
+    await seneca.close()
+  })
+
+
+  test('merge-item-calls-forge-and-marks-item-done', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const merged = await seneca.post('aim:inbox,merge:item', { id })
+    expect(merged.ok).true()
+    expect(merged.item.state).equal('done')
+
+    const after = await seneca.post('aim:inbox,list:item')
+    expect(after.items.length).equal(0)
+
+    await seneca.close()
+  })
+
+
+  test('comment-item-posts-through-forge', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const commented = await seneca.post('aim:inbox,comment:item', { id, body: 'looks good' })
+    expect(commented.ok).true()
+    expect(commented.comment.body).equal('looks good')
+
+    await seneca.close()
+  })
+
+
+  test('label-item-calls-forge', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const labeled = await seneca.post('aim:inbox,label:item', { id, labels: ['needs-work'] })
+    expect(labeled.ok).true()
+
+    await seneca.close()
+  })
+
+
+  test('close-item-requires-a-reason-then-comments-and-closes', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const bare = await seneca.post('aim:inbox,close:item', { id })
+    expect(bare.ok).false()
+    expect(bare.why).equal('reason-required')
+
+    const closed = await seneca.post('aim:inbox,close:item', { id, reason: 'superseded' })
+    expect(closed.ok).true()
+    expect(closed.item.state).equal('done')
+
+    await seneca.close()
+  })
+
+
+  test('item-intent-on-unknown-id-reports-not-found', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,approve:item', { id: 'does-not-exist' })
+    expect(res.ok).false()
+    expect(res.why).equal('not-found')
+
+    await seneca.close()
+  })
+
 })
