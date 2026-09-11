@@ -311,6 +311,16 @@
             "aim": "inbox"
           },
           {
+            "list": "pr"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
             "approve": "item"
           }
         ]
@@ -352,6 +362,16 @@
           },
           {
             "close": "item"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "snooze": "item"
           }
         ]
       },
@@ -464,6 +484,34 @@
           },
           {
             "close": "item"
+          }
+        ]
+      },
+      {
+        "file": "./web_snooze_item",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "snooze": "item"
+          }
+        ]
+      },
+      {
+        "file": "./web_list_pull",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "list": "pr"
           }
         ]
       }

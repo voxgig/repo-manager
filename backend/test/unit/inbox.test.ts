@@ -32,6 +32,10 @@ async function makeSeneca() {
 // maintainer1 - see test/fixtures/forge_mem.ts.
 const SYNC = { aim: 'inbox', sync: 'item', repo_ids: ['r1'], forge: 'mem', for_user: 'maintainer1' }
 
+// r2 has p2 (contributor2's PR, no review request - pr.inbound) and p3
+// (maintainer1's own 20-day-old PR - pr.stale).
+const SYNC_R2 = { aim: 'inbox', sync: 'item', repo_ids: ['r2'], forge: 'mem', for_user: 'maintainer1' }
+
 
 describe('inbox', () => {
 
@@ -134,6 +138,135 @@ describe('inbox', () => {
 
     const after = await seneca.post('aim:inbox,list:item')
     expect(after.items.length).equal(0)
+
+    await seneca.close()
+  })
+
+
+  // Pull requests nav view (list_pull.ts): raw fleet browse, no rpm/item
+  // behind any row - every open PR across the given repos, unfiltered.
+
+  test('list-pull-aggregates-open-prs-across-repos-with-a-repo-scoped-id', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:pr', { repo_ids: ['r1', 'r2'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.prs.length).equal(3)
+
+    const ids = res.prs.map((p: any) => p.id)
+    expect(ids.includes('r1#p1')).true()
+    expect(ids.includes('r2#p2')).true()
+    expect(ids.includes('r2#p3')).true()
+
+    await seneca.close()
+  })
+
+
+  // More item kinds (SPEC §12): pr.inbound and pr.stale, both derived from
+  // the same list:pr data as pr.review_requested - see ./detect.ts.
+
+  test('sync-detects-inbound-and-stale-with-derived-priority', async () => {
+    const seneca = await makeSeneca()
+
+    const synced = await seneca.post(SYNC_R2)
+    expect(synced.ok).true()
+    expect(synced.created).equal(2)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    const byKind: any = {}
+    for (const it of listed.items) byKind[it.kind] = it
+
+    expect(byKind['pr.inbound'].actor).equal('contributor2')
+    expect(byKind['pr.inbound'].priority).equal('now')
+
+    expect(byKind['pr.stale'].actor).equal('maintainer1')
+    expect(byKind['pr.stale'].priority).equal('later')
+    expect(byKind['pr.stale'].payload.age_days >= 20).true()
+
+    await seneca.close()
+  })
+
+
+  test('review-requested-pr-is-not-also-counted-as-inbound', async () => {
+    const seneca = await makeSeneca()
+
+    const synced = await seneca.post(SYNC)
+    expect(synced.created).equal(1)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    expect(listed.items.length).equal(1)
+    expect(listed.items[0].kind).equal('pr.review_requested')
+
+    await seneca.close()
+  })
+
+
+  // Snooze (SPEC §12.1 state machine): Open -> Snoozed -> Open (time passes,
+  // condition still true) or -> AutoResolved (condition gone while snoozed).
+
+  test('snooze-item-marks-snoozed-and-drops-out-of-open-list', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const snoozed = await seneca.post('aim:inbox,snooze:item', { id, until: Date.now() + 3600000 })
+    expect(snoozed.ok).true()
+    expect(snoozed.item.state).equal('snoozed')
+
+    const open = await seneca.post('aim:inbox,list:item')
+    expect(open.items.length).equal(0)
+
+    const snoozedList = await seneca.post('aim:inbox,list:item', { state: 'snoozed' })
+    expect(snoozedList.items.length).equal(1)
+
+    await seneca.close()
+  })
+
+
+  test('snooze-item-without-until-reports-until-required', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const res = await seneca.post('aim:inbox,snooze:item', { id })
+    expect(res.ok).false()
+    expect(res.why).equal('until-required')
+
+    await seneca.close()
+  })
+
+
+  test('resync-reopens-snoozed-item-once-until-passes-if-condition-still-true', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    await seneca.post('aim:inbox,snooze:item', { id, until: Date.now() - 1000 })
+    const resynced = await seneca.post(SYNC)
+    expect(resynced.updated).equal(1)
+
+    const open = await seneca.post('aim:inbox,list:item')
+    expect(open.items.length).equal(1)
+    expect(open.items[0].state).equal('open')
+
+    await seneca.close()
+  })
+
+
+  test('resync-auto-resolves-snoozed-item-when-condition-disappears', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    await seneca.post('aim:inbox,snooze:item', { id, until: Date.now() + 3600000 })
+
+    // The PR merges - the review-requested condition is gone.
+    await seneca.post('aim:forge,merge:pr,forge:mem', { pr_id: 'p1' })
+    const resynced = await seneca.post(SYNC)
+    expect(resynced.resolved).equal(1)
+
+    const snoozedList = await seneca.post('aim:inbox,list:item', { state: 'snoozed' })
+    expect(snoozedList.items.length).equal(0)
 
     await seneca.close()
   })

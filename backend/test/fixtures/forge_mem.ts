@@ -11,6 +11,18 @@ module.exports = function forge_mem(this: any) {
       url: 'https://example.com/r1/pull/1', author: 'contributor1',
       requested_reviewers: ['maintainer1'], updated_at: 1700000000000,
     },
+    // r2's PRs are kept out of r1 so existing single-repo sync tests are
+    // unaffected - only tests that explicitly sync r2 see pr.inbound/stale.
+    'p2': {
+      id: 'p2', repo_id: 'r2', title: 'Contributor fix', state: 'open',
+      url: 'https://example.com/r2/pull/2', author: 'contributor2',
+      requested_reviewers: [], updated_at: Date.now(),
+    },
+    'p3': {
+      id: 'p3', repo_id: 'r2', title: 'My stale PR', state: 'open',
+      url: 'https://example.com/r2/pull/3', author: 'maintainer1',
+      requested_reviewers: [], updated_at: Date.now() - 20 * 86400000,
+    },
   }
 
   const alerts: any = {

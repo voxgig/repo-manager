@@ -75,8 +75,8 @@ async function revokeApikey(id) {
 
 // ---- inbox (SPEC.REPO-MANAGER.md §12) ------------------------------------
 
-async function listInbox() {
-  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'item' })
+async function listInbox(state) {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'item', state })
   return (r && r.ok && r.items) || []
 }
 
@@ -86,6 +86,12 @@ async function dismissItem(id) {
 
 async function syncNow() {
   return bus.post({ aim: 'web', on: 'inbox', sync: 'item' })
+}
+
+// Pull requests nav view: raw fleet browse, not the derived queue.
+async function listPulls() {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'pr' })
+  return (r && r.ok && r.prs) || []
 }
 
 // Item intents (SPEC §13.2) - each translates to a forge call behind the
@@ -111,6 +117,10 @@ async function closeItem(id, reason) {
   return bus.post({ aim: 'web', on: 'inbox', close: 'item', id, reason })
 }
 
+async function snoozeItem(id, until) {
+  return bus.post({ aim: 'web', on: 'inbox', snooze: 'item', id, until })
+}
+
 export {
   list,
   load,
@@ -120,11 +130,13 @@ export {
   listInbox,
   dismissItem,
   syncNow,
+  listPulls,
   approveItem,
   mergeItem,
   commentItem,
   labelItem,
   closeItem,
+  snoozeItem,
   loadAuth,
   signin,
   signout,
