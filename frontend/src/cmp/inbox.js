@@ -92,13 +92,27 @@ class VgInbox extends HTMLElement {
     this.paletteIndex = 0
     this.statusMsg = ''
     this.composer = null
+    this.lastSyncedAt = null
+    // Sidebar badge counts, one per real view - kept separate from
+    // this.items (the ACTIVE view's rows) so every nav entry can show a
+    // real count, not just the one currently open.
+    this.counts = {}
     this.onKeydownBound = (ev) => this.onKeydown(ev)
     document.addEventListener('keydown', this.onKeydownBound)
+    // Keeps "synced Xs ago" honest without a full reload - nothing else on
+    // screen is time-sensitive enough to need a tick.
+    this.agoTimer = setInterval(() => {
+      if (this.lastSyncedAt) {
+        this.render()
+      }
+    }, 30000)
     await this.load()
+    this.refreshCounts()
   }
 
   disconnectedCallback() {
     document.removeEventListener('keydown', this.onKeydownBound)
+    clearInterval(this.agoTimer)
   }
 
   // The state this.view shows - what a service message loaded, and what an
@@ -121,7 +135,20 @@ class VgInbox extends HTMLElement {
       this.items.sort((a, b) =>
         (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) || (b.updated_at || 0) - (a.updated_at || 0))
     }
+    this.counts[this.view] = this.items.length
     this.clampFocus()
+    this.render()
+  }
+
+  // Refetches every real view's count for the sidebar badges - separate
+  // from load()'s single-view fetch so switching views stays cheap (one
+  // request, not four); called after anything that can change more than
+  // the active view's own count (initial load, a real sync).
+  async refreshCounts() {
+    const [inboxItems, snoozedItems, pulls, issues] = await Promise.all([
+      Api.listInbox('open'), Api.listInbox('snoozed'), Api.listPulls(), Api.listIssues(),
+    ])
+    this.counts = { inbox: inboxItems.length, snoozed: snoozedItems.length, pulls: pulls.length, issues: issues.length }
     this.render()
   }
 
@@ -304,7 +331,11 @@ class VgInbox extends HTMLElement {
     this.statusMsg = res.ok
       ? `synced: ${res.created} new, ${res.updated} updated, ${res.resolved} resolved`
       : 'sync not configured (REPO_MANAGER_REPOS / REPO_MANAGER_GITHUB_USER)'
+    if (res.ok) {
+      this.lastSyncedAt = Date.now()
+    }
     await this.load()
+    this.refreshCounts()
     setTimeout(() => {
       this.statusMsg = ''
       this.render()
@@ -453,7 +484,7 @@ class VgInbox extends HTMLElement {
           <span class="vg-inbox-crumb">/ ${esc(viewTitle)}</span>
           <div class="vg-spacer"></div>
           ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
-          <span class="vg-inbox-meta">${FLEET_ORGS.length} orgs · 1 forge</span>
+          <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
           <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
           <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
         </header>
@@ -461,7 +492,7 @@ class VgInbox extends HTMLElement {
           <nav class="vg-inbox-nav">
             ${Object.keys(VIEWS).map((v) => `
               <div class="vg-nav-item${v === this.view ? ' vg-nav-active' : ''}" data-view="${v}">
-                ${esc(VIEWS[v].title)} ${v === this.view ? `<span class="vg-nav-count">${items.length}</span>` : ''}
+                ${esc(VIEWS[v].title)} ${undefined !== this.counts[v] ? `<span class="vg-nav-count">${this.counts[v]}</span>` : ''}
               </div>`).join('')}
             ${INERT_SECTIONS.map((s) => `<div class="vg-nav-item vg-nav-inert">${esc(s)}</div>`).join('')}
             <div class="vg-nav-group-title">Fleet</div>
@@ -477,6 +508,9 @@ class VgInbox extends HTMLElement {
                 ${items.length
                   ? items.map((it, i) => this.renderRow(it, i)).join('')
                   : `<div class="vg-empty">${this.searchQuery ? 'no matches' : viewTitle.toLowerCase() + ' is empty'}</div>`}
+                ${items.length && this.itemActionsAvailable()
+                  ? '<div class="vg-inbox-footnote">items vanish on their own when the condition clears - merged PRs never need a keystroke</div>'
+                  : ''}
               </div>
               <aside class="vg-inbox-focus">
                 ${focused ? this.renderFocus(focused) : ''}
@@ -651,7 +685,7 @@ class VgInbox extends HTMLElement {
     return `
       <div class="vg-inbox-row${i === this.focusIndex ? ' vg-focused' : ''}" data-i="${i}">
         <span class="vg-priority-dot vg-priority-${esc(it.priority || 'none')}"></span>
-        <span class="vg-kind-badge">${esc(kindLabel(it.kind))}</span>
+        <span class="vg-kind-badge ${kindClass(it.kind)}">${esc(kindLabel(it.kind))}</span>
         <span class="vg-inbox-repo">${esc(it.repo || it.org_id || '')}</span>
         <span class="vg-inbox-title">${esc(it.title)}</span>
         <span class="vg-inbox-age">${age(it.updated_at)}</span>
@@ -687,6 +721,23 @@ class VgInbox extends HTMLElement {
 
 function kindLabel(kind) {
   return KIND_LABEL[kind] || kind
+}
+
+// 'pr.review_requested' -> 'vg-kind-pr-review_requested', so custom.css can
+// give each kind its own accent (PLATFORM.md §5.1) without a JS lookup table
+// to keep in sync every time a new kind is added.
+function kindClass(kind) {
+  return 'vg-kind-' + String(kind || '').replace(/\./g, '-')
+}
+
+// "synced Xs ago" in the topbar - same idea as age() but starting from
+// seconds, since a fresh sync is the one timestamp worth that resolution.
+function agoShort(ms) {
+  const secs = Math.floor((Date.now() - ms) / 1000)
+  if (secs < 60) {
+    return secs + 's ago'
+  }
+  return age(ms) + ' ago'
 }
 
 // Coarse relative time, matching the mockups' "2h" / "3d" style.

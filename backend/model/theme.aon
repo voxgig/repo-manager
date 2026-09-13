@@ -23,17 +23,21 @@ modes: {
     'shadow-card': '0 6px 24px rgba(13,27,42,.10)'
   }
 
+  # PLATFORM.md §5.1's real tokens (voxgig.com, confirmed against the live
+  # site) - the scaffold's generic GitHub-dark blue never got swapped in.
   dark: {
-    primary:       '#58a6ff'
-    'primary-dark': '#388bfd'
-    bg:            '#0d1117'
-    surface:       '#161b22'
+    primary:       '#f2307a'
+    'primary-dark': '#e70042'
+    bg:            '#0f1117'
+    surface:       '#2a3040'
     text:          '#e6edf3'
-    muted:         '#8b949e'
-    border:        '#30363d'
-    'topbar-bg':   '#010409'
+    muted:         '#8b95a7'
+    border:        '#41506b'
+    'topbar-bg':   '#0f1117'
     'topbar-fg':   '#e6edf3'
-    'accent-bg':   '#1f6feb44'
+    'accent-bg':   '#f2307a22'
+    success:       '#3fb950'
+    'success-dark': '#2ea043'
     font:          '15px/1.5 system-ui, sans-serif'
     radius:        '6px'
     'shadow-card': '0 6px 24px rgba(0,0,0,.55)'
