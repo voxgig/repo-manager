@@ -83,21 +83,32 @@
 .vg-inbox-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 1rem;
   border-top: 1px solid var(--vg-border); cursor: pointer; }
 .vg-inbox-row:hover { background: var(--vg-bg); }
-.vg-inbox-row.vg-focused { outline: 2px solid var(--vg-primary); outline-offset: -2px; }
+.vg-inbox-row.vg-focused { outline: 2px solid var(--vg-primary); outline-offset: -2px;
+  background: var(--vg-accent-bg); }
 .vg-inbox-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vg-inbox-repo { color: var(--vg-muted); font-family: monospace; font-size: 0.85rem; }
 .vg-inbox-age { color: var(--vg-muted); font-size: 0.85rem; }
+.vg-inbox-footnote { padding: 1rem; color: var(--vg-muted); font-size: 0.85rem; border-top: 1px solid var(--vg-border); }
 
+/* now/soon/later - derived, never hand-set (SPEC §12.2) */
 .vg-priority-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--vg-muted); }
-.vg-priority-dot.vg-priority-now { background: #e5484d; }
-.vg-priority-dot.vg-priority-soon { background: #f5a623; }
+.vg-priority-dot.vg-priority-now { background: var(--vg-primary); }
+.vg-priority-dot.vg-priority-soon { background: #f8b833; }
 .vg-priority-dot.vg-priority-later { background: var(--vg-muted); }
-strong.vg-priority-now { color: #e5484d; }
-strong.vg-priority-soon { color: #f5a623; }
+strong.vg-priority-now { color: var(--vg-primary); }
+strong.vg-priority-soon { color: #f8b833; }
 strong.vg-priority-later { color: var(--vg-muted); }
 
-.vg-kind-badge { background: var(--vg-accent-bg); color: var(--vg-primary); font-size: 0.75rem;
-  padding: 0.1rem 0.5rem; border-radius: 4px; }
+/* Per-kind (PLATFORM.md §5.1 accent palette): urgent/actionable kinds get a
+   filled accent badge, low-signal browse kinds (stale, plain open) get an
+   outline instead - the fill itself is a priority signal, not decoration. */
+.vg-kind-badge { font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 4px;
+  border: 1px solid transparent; background: var(--vg-accent-bg); color: var(--vg-primary); }
+.vg-kind-pr-review_requested { background: var(--vg-primary-dark); color: #fff; }
+.vg-kind-pr-inbound { background: #089ea5; color: #fff; }
+.vg-kind-pr-stale,
+.vg-kind-pr-open,
+.vg-kind-issue-open { background: transparent; border-color: var(--vg-border); color: var(--vg-muted); }
 
 .vg-inbox-focus { flex: 0 0 320px; padding: 1.2rem; overflow-y: auto; }
 .vg-focused-label { color: var(--vg-muted); font-size: 0.75rem; letter-spacing: .05em; margin-bottom: 0.4rem; }

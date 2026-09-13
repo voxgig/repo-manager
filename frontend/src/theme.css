@@ -3,18 +3,20 @@
 
 :root,
 :root[data-theme-mode="dark"] {
-  --vg-accent-bg: #1f6feb44;
-  --vg-bg: #0d1117;
-  --vg-border: #30363d;
+  --vg-accent-bg: #f2307a22;
+  --vg-bg: #0f1117;
+  --vg-border: #41506b;
   --vg-font: 15px/1.5 system-ui, sans-serif;
-  --vg-muted: #8b949e;
-  --vg-primary: #58a6ff;
-  --vg-primary-dark: #388bfd;
+  --vg-muted: #8b95a7;
+  --vg-primary: #f2307a;
+  --vg-primary-dark: #e70042;
   --vg-radius: 6px;
   --vg-shadow-card: 0 6px 24px rgba(0,0,0,.55);
-  --vg-surface: #161b22;
+  --vg-success: #3fb950;
+  --vg-success-dark: #2ea043;
+  --vg-surface: #2a3040;
   --vg-text: #e6edf3;
-  --vg-topbar-bg: #010409;
+  --vg-topbar-bg: #0f1117;
   --vg-topbar-fg: #e6edf3;
 }
 
