@@ -19,6 +19,7 @@
 
   { pat: [{aim: forge}, {list: pr}] }
   { pat: [{aim: forge}, {list: issue}] }
+  { pat: [{aim: forge}, {load: pr}] }
   { pat: [{aim: forge}, {open: pr}] }
   { pat: [{aim: forge}, {comment: issue}] }
   { pat: [{aim: forge}, {label: issue}] }
@@ -46,6 +47,10 @@
   { pat: [{aim: inbox}, {list: pr}] }
   { pat: [{aim: inbox}, {list: issue}] }
 
+  # The detail view for either kind of row above (item-backed or raw
+  # browse) - PR-only for now, see the loose-ends memory note.
+  { pat: [{aim: inbox}, {load: pr}] }
+
   # ---- item intents (SPEC §13.2 key bindings) -----------------------------
   # App-nouned, act on the WorkItem; each translates to the forge message(s)
   # below behind the gateway - the browser never posts aim:forge,* directly.
@@ -68,6 +73,7 @@
   { pat: [{aim: web}, {on: inbox}, {snooze: item}], file: './web_snooze_item' }
   { pat: [{aim: web}, {on: inbox}, {list: pr}], file: './web_list_pr' }
   { pat: [{aim: web}, {on: inbox}, {list: issue}], file: './web_list_issue' }
+  { pat: [{aim: web}, {on: inbox}, {load: pr}], file: './web_load_pr' }
 
 ]
 

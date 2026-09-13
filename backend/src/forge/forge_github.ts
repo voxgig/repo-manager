@@ -31,6 +31,18 @@ module.exports = function forge_github(this: any, options: any) {
     }
   })
 
+  // The detail view - list:pr's response is the list-endpoint shape, which
+  // GitHub doesn't carry body/diff-stats/mergeable on; this is the same
+  // Pull entity but loaded singly, where those fields actually show up.
+  seneca.message('aim:forge,load:pr,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    const pr = await this.entity('provider/github/pull').load$({ id: Number(msg.pr_id), owner, repo })
+    if (!pr) {
+      return { ok: false, why: 'not-found' }
+    }
+    return { ok: true, pr: normalizePrDetail(pr, msg.repo_id) }
+  })
+
   // pr_id is the PR NUMBER (not GitHub's internal id) - it's what merge/open
   // and every other follow-up action actually need on the wire, and it's
   // the same number a human sees in the PR's URL.
@@ -123,6 +135,27 @@ function normalizePr(pr: any, repo_id: string) {
     author: pr.user?.login,
     requested_reviewers: (pr.requested_reviewers || []).map((r: any) => r.login),
     updated_at: pr.updated_at ? Date.parse(pr.updated_at) : undefined,
+  }
+}
+
+// Everything normalizePr has, plus the fields only the single-PR load
+// carries - description, diff shape, mergeability. Checks and real review
+// approval counts aren't included: neither is modeled in the SDK yet
+// (Checks API isn't wired; the review-list point currently resolves to
+// requested_reviewers, not actual reviews - see the loose-ends memory note).
+function normalizePrDetail(pr: any, repo_id: string) {
+  return {
+    ...normalizePr(pr, repo_id),
+    body: pr.body || '',
+    draft: !!pr.draft,
+    merged: !!pr.merged,
+    mergeable: pr.mergeable,
+    mergeable_state: pr.mergeable_state,
+    head_ref: pr.head?.ref,
+    base_ref: pr.base?.ref,
+    additions: pr.additions,
+    deletions: pr.deletions,
+    changed_files: pr.changed_files,
   }
 }
 

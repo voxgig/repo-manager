@@ -14,6 +14,7 @@ message maps to the action file named after its last pattern pair.
 | `aim:inbox,dismiss:item` | `dismiss_item.ts` |
 | `aim:inbox,list:pr` | `list_pr.ts` |
 | `aim:inbox,list:issue` | `list_issue.ts` |
+| `aim:inbox,load:pr` | `load_pr.ts` |
 | `aim:inbox,approve:item` | `approve_item.ts` |
 | `aim:inbox,merge:item` | `merge_item.ts` |
 | `aim:inbox,comment:item` | `comment_item.ts` |
@@ -31,6 +32,7 @@ message maps to the action file named after its last pattern pair.
 | `aim:web,on:inbox,snooze:item` | `web_snooze_item.ts` |
 | `aim:web,on:inbox,list:pr` | `web_list_pr.ts` |
 | `aim:web,on:inbox,list:issue` | `web_list_issue.ts` |
+| `aim:web,on:inbox,load:pr` | `web_load_pr.ts` |
 
 ## Flow
 
@@ -42,6 +44,7 @@ flowchart LR
   srv --> dismiss_item["aim:inbox,dismiss:item<br>dismiss_item.ts"]
   srv --> list_pr["aim:inbox,list:pr<br>list_pr.ts"]
   srv --> list_issue["aim:inbox,list:issue<br>list_issue.ts"]
+  srv --> load_pr["aim:inbox,load:pr<br>load_pr.ts"]
   srv --> approve_item["aim:inbox,approve:item<br>approve_item.ts"]
   srv --> merge_item["aim:inbox,merge:item<br>merge_item.ts"]
   srv --> comment_item["aim:inbox,comment:item<br>comment_item.ts"]
@@ -59,6 +62,7 @@ flowchart LR
   srv --> web_snooze_item["aim:web,on:inbox,snooze:item<br>web_snooze_item.ts"]
   srv --> web_list_pr["aim:web,on:inbox,list:pr<br>web_list_pr.ts"]
   srv --> web_list_issue["aim:web,on:inbox,list:issue<br>web_list_issue.ts"]
+  srv --> web_load_pr["aim:web,on:inbox,load:pr<br>web_load_pr.ts"]
 ```
 
 Message params are validated from the model (gubu); see

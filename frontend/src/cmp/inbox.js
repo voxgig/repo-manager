@@ -69,8 +69,9 @@ const SNOOZE_PRESETS = [
 const KEY_ACTIONS = {
   j: { run: (c) => c.moveFocus(1) },
   k: { run: (c) => c.moveFocus(-1) },
-  Enter: { run: (c) => c.openFocused() },
-  o: { run: (c) => c.openFocused() },
+  Enter: { run: (c) => c.openDetail() },
+  o: { run: (c) => c.openExternal() },
+  Escape: { run: (c) => c.closeDetail() },
   e: { run: (c) => c.dismissFocused() },
   a: { run: (c) => c.approveFocused() },
   m: { run: (c) => c.mergeFocused() },
@@ -92,6 +93,8 @@ class VgInbox extends HTMLElement {
     this.paletteIndex = 0
     this.statusMsg = ''
     this.composer = null
+    this.detail = null
+    this.detailToken = 0
     this.lastSyncedAt = null
     // Sidebar badge counts, one per real view - kept separate from
     // this.items (the ACTIVE view's rows) so every nav entry can show a
@@ -122,6 +125,9 @@ class VgInbox extends HTMLElement {
   }
 
   async load() {
+    // A full reload re-fetches every item as a new object - any open detail
+    // page would be pointing at a stale reference, so drop it.
+    this.detail = null
     const browse = BROWSE_LOADERS[this.view]
     if (browse) {
       // Already sorted server-side (most recently updated first) - no
@@ -180,6 +186,7 @@ class VgInbox extends HTMLElement {
     this.view = view
     this.focusIndex = 0
     this.searchQuery = ''
+    this.detail = null
     await this.load()
   }
 
@@ -206,7 +213,8 @@ class VgInbox extends HTMLElement {
       { id: 'view-inbox', label: 'view: inbox', run: () => this.switchView('inbox') },
       { id: 'view-snoozed', label: 'view: snoozed', run: () => this.switchView('snoozed') },
       { id: 'view-pulls', label: 'view: pull requests', run: () => this.switchView('pulls') },
-      { id: 'open', label: 'open (o)', run: () => this.openFocused() },
+      { id: 'open', label: 'open detail (Enter)', run: () => this.openDetail() },
+      { id: 'open-external', label: 'open on forge (o)', run: () => this.openExternal() },
       { id: 'done', label: 'done (e)', run: () => this.dismissFocused() },
       { id: 'approve', label: 'approve (a)', run: () => this.approveFocused() },
       { id: 'merge', label: 'merge (m)', run: () => this.mergeFocused() },
@@ -257,7 +265,14 @@ class VgInbox extends HTMLElement {
   moveFocus(delta) {
     const n = this.visibleItems().length
     this.focusIndex = Math.max(0, Math.min(n - 1, this.focusIndex + delta))
-    this.render()
+    if (this.detail) {
+      // Stay in the detail page, but swap it to the new focus - matches
+      // the mockup's "j k next/prev item" hint in the detail topbar.
+      this.openDetail()
+    }
+    else {
+      this.render()
+    }
   }
 
   focusSearch() {
@@ -317,11 +332,39 @@ class VgInbox extends HTMLElement {
     }
   }
 
-  openFocused() {
+  openExternal() {
     const item = this.visibleItems()[this.focusIndex]
     if (item && item.url) {
       window.open(item.url, '_blank', 'noopener')
     }
+  }
+
+  // In-app detail page (03-pr-item.png). Only PRs have one - Api.loadPr is
+  // the only load:X point wired up so far (see msg.aon's loose-ends note);
+  // Enter on anything else is a no-op rather than a surprise external tab.
+  async openDetail() {
+    const item = this.visibleItems()[this.focusIndex]
+    if (!item || !String(item.kind || '').startsWith('pr.')) {
+      return
+    }
+    const token = ++this.detailToken
+    this.detail = { item, pr: this.detail && this.detail.item === item ? this.detail.pr : null, loading: true }
+    this.render()
+    const pr = await Api.loadPr(item.repo, item.subject_id)
+    if (token !== this.detailToken) {
+      // Focus moved on (or detail closed) before this landed - discard it.
+      return
+    }
+    this.detail = { item, pr, loading: false }
+    this.render()
+  }
+
+  closeDetail() {
+    if (!this.detail) {
+      return
+    }
+    this.detail = null
+    this.render()
   }
 
   async runSync() {
@@ -363,6 +406,10 @@ class VgInbox extends HTMLElement {
       this.items.splice(idx, 1)
     }
     this.clampFocus()
+    // The item this.detail was showing is gone - nothing left to render.
+    if (this.detail && this.detail.item.id === id) {
+      this.detail = null
+    }
   }
 
   // Runs an item intent, surfacing the result as a status message - "A
@@ -472,12 +519,25 @@ class VgInbox extends HTMLElement {
     // first, is the only reliable signal.
     const hadSearchFocus = document.activeElement === this.querySelector('.vg-search-input')
 
+    if (this.detail) {
+      this.innerHTML = this.renderDetailPage()
+      this.wireDetailPage()
+    }
+    else {
+      this.innerHTML = this.renderListPage()
+      this.wireListPage(hadSearchFocus)
+    }
+
+    this.wireOverlays()
+  }
+
+  renderListPage() {
     const items = this.visibleItems()
     const focused = items[this.focusIndex]
     const viewTitle = VIEWS[this.view].title
     const showActions = this.itemActionsAvailable()
 
-    this.innerHTML = `
+    return `
       <div class="vg-inbox">
         <header class="vg-inbox-topbar">
           <span class="vg-inbox-brand">🔴 repo-manager</span>
@@ -518,7 +578,8 @@ class VgInbox extends HTMLElement {
             </div>
             <footer class="vg-inbox-keys">
               <span><kbd>j</kbd><kbd>k</kbd> move</span>
-              <span><kbd>o</kbd> open</span>
+              <span><kbd>Enter</kbd> open</span>
+              <span><kbd>o</kbd> open on forge</span>
               ${showActions ? `
                 <span><kbd>e</kbd> done</span>
                 <span><kbd>a</kbd> approve</span>
@@ -535,11 +596,13 @@ class VgInbox extends HTMLElement {
         ${this.paletteOpen ? this.renderPalette() : ''}
         ${this.composer ? this.renderComposer() : ''}
       </div>`
+  }
 
+  wireListPage(hadSearchFocus) {
     for (const row of this.querySelectorAll('.vg-inbox-row')) {
       row.onclick = () => {
         this.focusIndex = Number(row.dataset.i)
-        this.render()
+        this.openDetail()
       }
     }
 
@@ -575,7 +638,129 @@ class VgInbox extends HTMLElement {
         this.wantSearchFocus = false
       }
     }
+  }
 
+  // In-app PR detail page (03-pr-item.png) - a full-page replacement, not a
+  // panel inside the list shell. CHECKS and unresolved-thread cards are
+  // deliberately omitted: neither the Checks API nor a resolving review-
+  // comments API is wired into the SDK yet, and this app never fakes data.
+  renderDetailPage() {
+    const { item, pr, loading } = this.detail
+    const showActions = this.itemActionsAvailable()
+    const badge = pr
+      ? `${esc(String(pr.state || '').toUpperCase())} · ${
+          true === pr.mergeable ? 'MERGEABLE' : false === pr.mergeable ? 'CONFLICTS' : '…'}`
+      : ''
+
+    return `
+      <div class="vg-pr-detail">
+        <header class="vg-detail-topbar">
+          <button class="vg-detail-back"><kbd>Esc</kbd> back to inbox</button>
+          <span class="vg-detail-crumb">/ ${esc(item.repo || item.org_id || '')}</span>
+          <span class="vg-detail-title">#${esc(item.subject_id)} · ${esc(item.title)}</span>
+          ${pr ? `<span class="vg-detail-badge">${badge}</span>` : ''}
+          <div class="vg-spacer"></div>
+          <span class="vg-detail-nav-hint"><kbd>j</kbd><kbd>k</kbd> next / prev item</span>
+        </header>
+        <div class="vg-detail-shell">
+          <div class="vg-detail-main">
+            ${loading
+              ? '<div class="vg-empty">loading…</div>'
+              : pr ? this.renderDetailBody(item, pr) : '<div class="vg-empty">could not load PR detail</div>'}
+          </div>
+          <aside class="vg-detail-side">
+            ${pr ? this.renderDetailState(item, pr) : ''}
+            ${this.renderDetailActions(item, showActions)}
+          </aside>
+        </div>
+        <footer class="vg-inbox-keys">
+          ${showActions ? `
+            <span><kbd>a</kbd> approve</span>
+            <span><kbd>m</kbd> merge</span>
+            <span><kbd>c</kbd> comment</span>
+            <span><kbd>l</kbd> label</span>
+            <span><kbd>C</kbd> close</span>
+            <span><kbd>s</kbd> snooze</span>
+            <span><kbd>e</kbd> done</span>` : ''}
+          <span><kbd>o</kbd> open on ${esc(item.source || 'forge')}</span>
+          <span><kbd>Esc</kbd> back</span>
+        </footer>
+      </div>
+      ${this.paletteOpen ? this.renderPalette() : ''}
+      ${this.composer ? this.renderComposer() : ''}`
+  }
+
+  renderDetailBody(item, pr) {
+    return `
+      <div class="vg-detail-card">
+        <div class="vg-detail-summary">
+          ${item.actor ? `<strong>@${esc(item.actor)}</strong> wants your review · ` : ''}
+          ${pr.head_ref && pr.base_ref ? `${esc(pr.head_ref)} → ${esc(pr.base_ref)} · ` : ''}
+          ${undefined !== pr.additions ? `<span class="vg-diff-add">+${pr.additions}</span> <span class="vg-diff-del">−${pr.deletions}</span> · ` : ''}
+          ${undefined !== pr.changed_files ? `${pr.changed_files} files` : ''}
+        </div>
+        ${pr.body ? `<div class="vg-detail-body">${esc(pr.body)}</div>` : ''}
+      </div>
+      <div class="vg-detail-note">checks and review threads aren't shown here yet - neither is wired into the SDK</div>`
+  }
+
+  renderDetailState(item, pr) {
+    return `
+      <div class="vg-detail-side-block">
+        <div class="vg-detail-side-title">STATE</div>
+        <div class="vg-detail-state-row">mergeable — <strong>${
+          true === pr.mergeable ? 'yes' : false === pr.mergeable ? 'no' : 'unknown'}</strong></div>
+        ${pr.mergeable_state ? `<div class="vg-detail-state-row">status — ${esc(pr.mergeable_state)}</div>` : ''}
+        ${item.priority ? `<div class="vg-detail-state-row">priority — <strong class="vg-priority-${esc(item.priority)}">${esc(item.priority)}</strong></div>` : ''}
+        ${pr.draft ? '<div class="vg-detail-state-row">draft</div>' : ''}
+      </div>`
+  }
+
+  renderDetailActions(item, showActions) {
+    return `
+      <div class="vg-detail-side-block">
+        <div class="vg-detail-side-title">ACTIONS</div>
+        ${showActions ? `
+          <div class="vg-detail-action" data-act="approve"><kbd>a</kbd> approve</div>
+          <div class="vg-detail-action" data-act="merge"><kbd>m</kbd> merge</div>
+          <div class="vg-detail-action" data-act="comment"><kbd>c</kbd> comment</div>
+          <div class="vg-detail-action" data-act="label"><kbd>l</kbd> label</div>
+          <div class="vg-detail-action" data-act="close"><kbd>C</kbd> close with reason</div>
+          <div class="vg-detail-action" data-act="snooze"><kbd>s</kbd> snooze</div>
+          <div class="vg-detail-action" data-act="done"><kbd>e</kbd> done</div>` : ''}
+        <div class="vg-detail-action" data-act="open"><kbd>o</kbd> open on ${esc(item.source || 'forge')}</div>
+      </div>
+      <div class="vg-detail-disclaimer">Approve and merge are always a human decision — no rule, schedule or agent merges anything.</div>`
+  }
+
+  wireDetailPage() {
+    const back = this.querySelector('.vg-detail-back')
+    if (back) {
+      back.onclick = () => this.closeDetail()
+    }
+
+    const actionFns = {
+      approve: () => this.approveFocused(),
+      merge: () => this.mergeFocused(),
+      comment: () => this.openComposer('comment'),
+      label: () => this.openComposer('label'),
+      close: () => this.openComposer('close'),
+      snooze: () => this.openComposer('snooze'),
+      done: () => this.dismissFocused(),
+      open: () => this.openExternal(),
+    }
+    for (const el of this.querySelectorAll('.vg-detail-action')) {
+      el.onclick = () => {
+        const fn = actionFns[el.dataset.act]
+        if (fn) {
+          fn()
+        }
+      }
+    }
+  }
+
+  // Palette and composer overlay both page modes identically.
+  wireOverlays() {
     if (this.paletteOpen) {
       const input = this.querySelector('.vg-palette-input')
       input.value = this.paletteQuery || ''
@@ -705,6 +890,7 @@ class VgInbox extends HTMLElement {
         ? `<div class="vg-muted">snoozed until ${new Date(it.snooze_until).toLocaleString()}</div>`
         : ''}
       <div class="vg-focus-actions">
+        ${String(it.kind || '').startsWith('pr.') ? '<div><kbd>Enter</kbd> open</div>' : ''}
         <div><kbd>o</kbd> open on ${esc(it.source)}</div>
         ${showActions ? `
           <div><kbd>e</kbd> done</div>

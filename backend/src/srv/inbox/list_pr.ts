@@ -18,7 +18,7 @@ module.exports = function make_list_pr() {
 
       for (const pr of res.prs) {
         prs.push({
-          id: `${repo_id}#${pr.id}`, repo: repo_id, source: forge, kind: 'pr.open',
+          id: `${repo_id}#${pr.id}`, subject_id: pr.id, repo: repo_id, source: forge, kind: 'pr.open',
           title: pr.title, url: pr.url, actor: pr.author, updated_at: pr.updated_at,
         })
       }
