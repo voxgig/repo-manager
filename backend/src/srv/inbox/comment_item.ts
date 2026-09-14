@@ -1,4 +1,4 @@
-const loadItemForge = require('./item_forge')
+const { loadItemForge, markResponded } = require('./item_forge')
 
 module.exports = function make_comment_item() {
   return async function comment_item(this: any, msg: any) {
@@ -9,6 +9,9 @@ module.exports = function make_comment_item() {
 
     const res = await seneca.post({ aim: 'forge', comment: 'issue', forge, repo_id, issue_id: pr_id, body: msg.body })
     if (!res.ok) return { ok: false, why: res.why || 'forge-failed' }
+
+    markResponded(item)
+    await item.save$()
 
     return { ok: true, item, comment: res.comment }
   }

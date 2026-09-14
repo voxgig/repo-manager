@@ -1,4 +1,4 @@
-const loadItemForge = require('./item_forge')
+const { loadItemForge } = require('./item_forge')
 
 module.exports = function make_label_item() {
   return async function label_item(this: any, msg: any) {

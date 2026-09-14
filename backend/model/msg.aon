@@ -41,6 +41,18 @@
   { pat: [{aim: inbox}, {list: item}] }
   { pat: [{aim: inbox}, {dismiss: item}] }
 
+  # SPEC §13.3: undo covers what a definition declares reversible - here,
+  # dismiss and snooze (pure local state, no forge call). label/comment/
+  # close/approve/merge changed forge state we can't reliably reverse
+  # (no prior-labels capture, no comment-delete/review-dismiss modeled),
+  # so those are excluded rather than offered and silently failing.
+  { pat: [{aim: inbox}, {undo: item}] }
+
+  # SPEC §12.4: rpm/reply - org-scoped templated responses, reachable from
+  # the comment/close composer. Seeded with the spec's five named intents
+  # on first use; list-only for now, no add/edit UI yet.
+  { pat: [{aim: inbox}, {list: reply}] }
+
   # Raw fleet browse (Pull requests / Issues nav views) - every open PR or
   # issue, not the derived queue. No rpm/item behind these; read-only in
   # the UI.
@@ -65,6 +77,8 @@
   { pat: [{aim: web}, {on: inbox}, {sync: item}], file: './web_sync_item' }
   { pat: [{aim: web}, {on: inbox}, {list: item}], file: './web_list_item' }
   { pat: [{aim: web}, {on: inbox}, {dismiss: item}], file: './web_dismiss_item' }
+  { pat: [{aim: web}, {on: inbox}, {undo: item}], file: './web_undo_item' }
+  { pat: [{aim: web}, {on: inbox}, {list: reply}], file: './web_list_reply' }
   { pat: [{aim: web}, {on: inbox}, {approve: item}], file: './web_approve_item' }
   { pat: [{aim: web}, {on: inbox}, {merge: item}], file: './web_merge_item' }
   { pat: [{aim: web}, {on: inbox}, {comment: item}], file: './web_comment_item' }

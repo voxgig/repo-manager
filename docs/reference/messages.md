@@ -25,6 +25,8 @@ flowchart LR
 | `aim:inbox,sync:item` | `src/srv/inbox/sync_item.ts` |
 | `aim:inbox,list:item` | `src/srv/inbox/list_item.ts` |
 | `aim:inbox,dismiss:item` | `src/srv/inbox/dismiss_item.ts` |
+| `aim:inbox,undo:item` | `src/srv/inbox/undo_item.ts` |
+| `aim:inbox,list:reply` | `src/srv/inbox/list_reply.ts` |
 | `aim:inbox,list:pr` | `src/srv/inbox/list_pr.ts` |
 | `aim:inbox,list:issue` | `src/srv/inbox/list_issue.ts` |
 | `aim:inbox,load:pr` | `src/srv/inbox/load_pr.ts` |
@@ -37,6 +39,8 @@ flowchart LR
 | `aim:web,on:inbox,sync:item` | `src/srv/inbox/web_sync_item.ts` |
 | `aim:web,on:inbox,list:item` | `src/srv/inbox/web_list_item.ts` |
 | `aim:web,on:inbox,dismiss:item` | `src/srv/inbox/web_dismiss_item.ts` |
+| `aim:web,on:inbox,undo:item` | `src/srv/inbox/web_undo_item.ts` |
+| `aim:web,on:inbox,list:reply` | `src/srv/inbox/web_list_reply.ts` |
 | `aim:web,on:inbox,approve:item` | `src/srv/inbox/web_approve_item.ts` |
 | `aim:web,on:inbox,merge:item` | `src/srv/inbox/web_merge_item.ts` |
 | `aim:web,on:inbox,comment:item` | `src/srv/inbox/web_comment_item.ts` |
