@@ -156,6 +156,7 @@ function normalizePrDetail(pr: any, repo_id: string) {
     additions: pr.additions,
     deletions: pr.deletions,
     changed_files: pr.changed_files,
+    commits: pr.commits,
   }
 }
 

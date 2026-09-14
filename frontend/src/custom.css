@@ -56,6 +56,24 @@
   background: var(--vg-bg); color: var(--vg-text); cursor: pointer; font: inherit; font-size: 0.9rem; }
 .vg-composer-pick:hover { background: var(--vg-accent-bg); color: var(--vg-primary); }
 
+/* ---- merge confirmation (04-merge-confirm.png, S13) ---- */
+
+.vg-merge-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center; z-index: 60; }
+.vg-merge-confirm { width: 460px; max-width: 90vw; background: var(--vg-surface); border: 1px solid var(--vg-border);
+  border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); padding: 1.1rem 1.3rem; }
+.vg-merge-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 0.3rem; }
+.vg-merge-sub { color: var(--vg-muted); font-family: monospace; font-size: 0.85rem; margin-bottom: 0.8rem;
+  padding-bottom: 0.8rem; border-bottom: 1px solid var(--vg-border); }
+.vg-merge-status { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.9rem; }
+.vg-merge-warning { color: #f8b833; font-size: 0.85rem; margin-bottom: 1rem; }
+.vg-merge-row { display: flex; justify-content: flex-end; gap: 0.6rem; }
+.vg-merge-cancel, .vg-merge-go { border-radius: 6px; padding: 0.4rem 0.9rem; font-size: 0.9rem;
+  border: 1px solid var(--vg-border); background: transparent; color: var(--vg-text); cursor: pointer;
+  display: flex; align-items: center; gap: 0.5rem; }
+.vg-merge-go { background: var(--vg-primary); border-color: var(--vg-primary); color: #fff; font-weight: 700; }
+.vg-merge-go:disabled { opacity: 0.5; cursor: default; }
+
 .vg-inbox-shell { display: flex; flex: 1; min-height: 0; }
 
 .vg-inbox-nav { flex: 0 0 200px; background: var(--vg-surface); border-right: 1px solid var(--vg-border);
