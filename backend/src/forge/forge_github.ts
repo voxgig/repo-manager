@@ -169,6 +169,9 @@ function normalizeIssue(issue: any, repo_id: string) {
     url: issue.html_url,
     author: issue.user?.login,
     assignees: (issue.assignees || []).map((a: any) => a.login),
+    // GitHub's list endpoint returns label objects, not bare strings.
+    labels: (issue.labels || []).map((l: any) => ('string' === typeof l ? l : l.name)),
+    body: issue.body || '',
     updated_at: issue.updated_at ? Date.parse(issue.updated_at) : undefined,
   }
 }

@@ -77,22 +77,51 @@ module.exports = function forge_mem(this: any) {
   }
 
   const issues: any = {
-    'i1': { id: 'i1', repo_id: 'r1', title: 'A real issue', state: 'open', url: 'https://example.com/r1/issues/1', author: 'someone', assignees: [], updated_at: Date.now() },
+    // labels: ['bug'] keeps this out of issue.untriaged - added once that
+    // detector existed, so the many r1-scoped sync tests below (all written
+    // against "exactly 1 item: the PR review request") stay accurate.
+    'i1': { id: 'i1', repo_id: 'r1', title: 'A real issue', state: 'open', url: 'https://example.com/r1/issues/1', author: 'someone', assignees: [], labels: ['bug'], updated_at: Date.now() },
 
+    // Demo repos (REPO_MANAGER_FORGE=mem) - deliberately unlabeled, so it's
+    // the untriaged example in the demo inbox.
     'i2': {
       id: 'i2', repo_id: 'tabnas/jsonic', title: 'Anchors drop trailing comments', state: 'open',
-      url: 'https://example.com/tabnas/jsonic/issues/2', author: 'user5', assignees: [],
+      url: 'https://example.com/tabnas/jsonic/issues/2', author: 'user5', assignees: [], labels: [],
       updated_at: Date.now() - 9 * 3600000,
     },
     'i3': {
       id: 'i3', repo_id: 'voxgig/sdkgen', title: 'npm publish token rotates in 6 days', state: 'open',
       url: 'https://example.com/voxgig/sdkgen/issues/3', author: 'maintainer1', assignees: ['maintainer1'],
-      updated_at: Date.now() - 2 * 86400000,
+      labels: ['maintenance'], updated_at: Date.now() - 2 * 86400000,
     },
     'i4': {
       id: 'i4', repo_id: 'senecajs/seneca-redis-store', title: 'Flaky test: cluster reconnect', state: 'open',
       url: 'https://example.com/senecajs/seneca-redis-store/issues/4', author: 'contributor6', assignees: [],
-      updated_at: Date.now() - 4 * 86400000,
+      labels: ['bug', 'flaky-test'], updated_at: Date.now() - 4 * 86400000,
+    },
+    'i5': {
+      id: 'i5', repo_id: 'voxgig-sdk/stripe-sdk', title: 'Question about idempotency keys', state: 'open',
+      url: 'https://example.com/voxgig-sdk/stripe-sdk/issues/5', author: 'user7', assignees: [],
+      labels: ['question'], body: 'cc @maintainer1 - is this the right way to pass an idempotency key?',
+      updated_at: Date.now() - 30 * 60000,
+    },
+
+    // r3: test-only, not in any demo REPO_MANAGER_REPOS list - exercises
+    // the issue detectors without disturbing r1/r2's exact-count assertions.
+    'i6': {
+      id: 'i6', repo_id: 'r3', title: 'Assigned and untriaged at once', state: 'open',
+      url: 'https://example.com/r3/issues/6', author: 'someone', assignees: ['maintainer1'], labels: [],
+      updated_at: Date.now(),
+    },
+    'i7': {
+      id: 'i7', repo_id: 'r3', title: 'Mentioned, not assigned', state: 'open',
+      url: 'https://example.com/r3/issues/7', author: 'someone', assignees: [], labels: ['bug'],
+      body: 'hey @maintainer1 can you take a look?', updated_at: Date.now(),
+    },
+    'i8': {
+      id: 'i8', repo_id: 'r3', title: 'Nobody is on this yet', state: 'open',
+      url: 'https://example.com/r3/issues/8', author: 'someone', assignees: [], labels: [],
+      updated_at: Date.now(),
     },
   }
 
@@ -135,7 +164,14 @@ module.exports = function forge_mem(this: any) {
     return { ok: true, comment: { id: 'cm1', issue_id: msg.issue_id, body: msg.body } }
   })
 
-  seneca.message('aim:forge,label:issue,forge:mem', async function () {
+  seneca.message('aim:forge,label:issue,forge:mem', async function (msg: any) {
+    // Mutates the issues fixture (when issue_id names a real one) so a
+    // resync can observe the retriage - matches GitHub's real replace
+    // semantics. No-op for a PR's issue_id, same as before.
+    const issue = issues[msg.issue_id]
+    if (issue) {
+      issue.labels = msg.labels
+    }
     return { ok: true }
   })
 

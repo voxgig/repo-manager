@@ -1,6 +1,6 @@
-// Polls the given repos via aim:forge,list:pr, runs every PR detector
-// (./detect.ts) over each PR, and stores one rpm/item per condition found -
-// condition -> item, per SPEC §12.1:
+// Polls the given repos via aim:forge,list:pr / list:issue, runs every
+// detector (./detect.ts) over each subject, and stores one rpm/item per
+// condition found - condition -> item, per SPEC §12.1:
 //   no item, condition present  -> create
 //   item exists, digest same    -> no-op
 //   item exists, digest changed -> update (reopen if it was done)
@@ -8,7 +8,14 @@
 
 import * as crypto from 'crypto'
 
-const { PR_DETECTORS, priorityFor } = require('./detect')
+const { PR_DETECTORS, ISSUE_DETECTORS, priorityFor } = require('./detect')
+
+// Same shape for both subject kinds: which aim:forge,list:* answers it,
+// which field of the response carries the list, which detectors run over it.
+const SOURCES = [
+  { list: 'pr', items_key: 'prs', detectors: PR_DETECTORS },
+  { list: 'issue', items_key: 'issues', detectors: ISSUE_DETECTORS },
+]
 
 module.exports = function make_sync_item() {
   return async function sync_item(this: any, msg: any) {
@@ -23,58 +30,60 @@ module.exports = function make_sync_item() {
     let updated = 0
 
     for (const repo_id of repo_ids) {
-      const res = await seneca.post({ aim: 'forge', list: 'pr', forge, repo_id })
-      if (!res.ok) continue
-
       const org_id = repo_id.split('/')[0]
 
-      for (const pr of res.prs) {
-        for (const detect of PR_DETECTORS) {
-          const cond = detect(pr, for_user)
-          if (!cond) continue
+      for (const source of SOURCES) {
+        const res = await seneca.post({ aim: 'forge', list: source.list, forge, repo_id })
+        if (!res.ok) continue
 
-          seen.add([org_id, forge, cond.kind, repo_id, cond.subject_id].join('|'))
+        for (const subject of res[source.items_key]) {
+          for (const detect of source.detectors) {
+            const cond = detect(subject, for_user)
+            if (!cond) continue
 
-          const digest = crypto.createHash('sha256').update(JSON.stringify(cond.facts)).digest('hex')
-          const now = Date.now()
-          const existing = (await seneca.entity('rpm/item').list$({
-            org_id, source: forge, kind: cond.kind, repo: repo_id, subject_id: cond.subject_id,
-          }))[0]
+            seen.add([org_id, forge, cond.kind, repo_id, cond.subject_id].join('|'))
 
-          if (!existing) {
-            await seneca.entity('rpm/item').data$({
-              org_id, source: forge, repo: repo_id, kind: cond.kind,
-              title: cond.title, url: cond.url, actor: cond.actor, subject_id: cond.subject_id,
-              priority: priorityFor(cond.kind), state: 'open',
-              first_seen: now, updated_at: cond.updated_at || now,
-              digest, payload: cond.payload,
-            }).save$()
-            created++
-          }
-          else {
-            let dirty = false
+            const digest = crypto.createHash('sha256').update(JSON.stringify(cond.facts)).digest('hex')
+            const now = Date.now()
+            const existing = (await seneca.entity('rpm/item').list$({
+              org_id, source: forge, kind: cond.kind, repo: repo_id, subject_id: cond.subject_id,
+            }))[0]
 
-            if (existing.digest !== digest) {
-              existing.title = cond.title
-              existing.updated_at = cond.updated_at || now
-              existing.digest = digest
-              dirty = true
-              if ('done' === existing.state) {
-                existing.state = 'open'
+            if (!existing) {
+              await seneca.entity('rpm/item').data$({
+                org_id, source: forge, repo: repo_id, kind: cond.kind,
+                title: cond.title, url: cond.url, actor: cond.actor, subject_id: cond.subject_id,
+                priority: priorityFor(cond.kind), state: 'open',
+                first_seen: now, updated_at: cond.updated_at || now,
+                digest, payload: cond.payload,
+              }).save$()
+              created++
+            }
+            else {
+              let dirty = false
+
+              if (existing.digest !== digest) {
+                existing.title = cond.title
+                existing.updated_at = cond.updated_at || now
+                existing.digest = digest
+                dirty = true
+                if ('done' === existing.state) {
+                  existing.state = 'open'
+                }
               }
-            }
 
-            // Snoozed -> Open once `until` passes, regardless of digest -
-            // the condition is still true, so the wake is unconditional.
-            if ('snoozed' === existing.state && now >= (existing.snooze_until || 0)) {
-              existing.state = 'open'
-              existing.snooze_until = undefined
-              dirty = true
-            }
+              // Snoozed -> Open once `until` passes, regardless of digest -
+              // the condition is still true, so the wake is unconditional.
+              if ('snoozed' === existing.state && now >= (existing.snooze_until || 0)) {
+                existing.state = 'open'
+                existing.snooze_until = undefined
+                dirty = true
+              }
 
-            if (dirty) {
-              await existing.save$()
-              updated++
+              if (dirty) {
+                await existing.save$()
+                updated++
+              }
             }
           }
         }

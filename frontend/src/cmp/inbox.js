@@ -13,6 +13,9 @@ const KIND_LABEL = {
   'pr.stale': 'stale',
   'pr.open': 'open',
   'issue.open': 'open',
+  'issue.assigned': 'assigned',
+  'issue.mentioned': 'mentioned',
+  'issue.untriaged': 'untriaged',
 }
 
 // The known fleet (docs/inventory.md) - static until org modeling (Stage 4
@@ -172,6 +175,23 @@ class VgInbox extends HTMLElement {
       return true
     }
     this.statusMsg = `not available in ${VIEWS[this.view].title} - browse only`
+    this.render()
+    setTimeout(() => {
+      this.statusMsg = ''
+      this.render()
+    }, 2500)
+    return false
+  }
+
+  // approve/merge are PR-only forge concepts (aim:forge,approve:pr /
+  // merge:pr) - guards a/m the same way requireItemActions() guards the
+  // whole set for a browse view, since issue-kind items now share the
+  // derived inbox with pr.* ones.
+  requirePrItem(item) {
+    if (item && isPrKind(item.kind)) {
+      return true
+    }
+    this.statusMsg = 'not available for issues'
     this.render()
     setTimeout(() => {
       this.statusMsg = ''
@@ -361,7 +381,7 @@ class VgInbox extends HTMLElement {
   // Enter on anything else is a no-op rather than a surprise external tab.
   async openDetail() {
     const item = this.visibleItems()[this.focusIndex]
-    if (!item || !String(item.kind || '').startsWith('pr.')) {
+    if (!item || !isPrKind(item.kind)) {
       return
     }
     const token = ++this.detailToken
@@ -459,7 +479,7 @@ class VgInbox extends HTMLElement {
       return
     }
     const item = this.visibleItems()[this.focusIndex]
-    if (!item) {
+    if (!item || !this.requirePrItem(item)) {
       return
     }
     await this.runAction(() => Api.approveItem(item.id), 'approved')
@@ -475,7 +495,7 @@ class VgInbox extends HTMLElement {
       return
     }
     const item = this.visibleItems()[this.focusIndex]
-    if (!item) {
+    if (!item || !this.requirePrItem(item)) {
       return
     }
     this.mergeConfirm = { item, pr: null, loading: true }
@@ -992,12 +1012,13 @@ class VgInbox extends HTMLElement {
         ? `<div class="vg-muted">snoozed until ${new Date(it.snooze_until).toLocaleString()}</div>`
         : ''}
       <div class="vg-focus-actions">
-        ${String(it.kind || '').startsWith('pr.') ? '<div><kbd>Enter</kbd> open</div>' : ''}
+        ${isPrKind(it.kind) ? '<div><kbd>Enter</kbd> open</div>' : ''}
         <div><kbd>o</kbd> open on ${esc(it.source)}</div>
         ${showActions ? `
           <div><kbd>e</kbd> done</div>
+          ${isPrKind(it.kind) ? `
           <div><kbd>a</kbd> approve</div>
-          <div><kbd>m</kbd> merge</div>
+          <div><kbd>m</kbd> merge</div>` : ''}
           <div><kbd>c</kbd> comment</div>
           <div><kbd>l</kbd> label</div>
           <div><kbd>C</kbd> close with reason</div>
@@ -1006,6 +1027,12 @@ class VgInbox extends HTMLElement {
   }
 }
 
+
+// PRs and issues share the derived inbox, but approve/merge/detail-open are
+// PR-only forge concepts (aim:forge,approve:pr / merge:pr; no load:issue).
+function isPrKind(kind) {
+  return String(kind || '').startsWith('pr.')
+}
 
 function kindLabel(kind) {
   return KIND_LABEL[kind] || kind

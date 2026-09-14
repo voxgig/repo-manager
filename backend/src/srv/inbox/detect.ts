@@ -8,10 +8,18 @@ const STALE_DAYS = 14
 // SPEC §12.2: derived, not user-assigned. Partial cut - only the kinds
 // Stage 2 has detectors for; the rest of the heuristic (checks, conflicts,
 // drift, security) lands with those kinds.
+//
+// issue.untriaged -> later is spec-explicit (§12.2's own "later" example
+// list names it). issue.assigned/mentioned aren't in any of §12.2's worked
+// examples (those are all PR/security-specific "someone is blocked on you"
+// cases) - 'soon' here is our own judgment call, not a stated default.
 const KIND_PRIORITY: Record<string, string> = {
   'pr.review_requested': 'now',
   'pr.inbound': 'now',
   'pr.stale': 'later',
+  'issue.assigned': 'soon',
+  'issue.mentioned': 'soon',
+  'issue.untriaged': 'later',
 }
 
 function priorityFor(kind: string) {
@@ -66,4 +74,57 @@ function detectStale(pr: any, for_user: string) {
 
 const PR_DETECTORS = [detectReviewRequested, detectInbound, detectStale]
 
-module.exports = { PR_DETECTORS, priorityFor }
+// SPEC §12: 'issue.assigned' | 'issue.mentioned' | 'issue.untriaged' - the
+// three issue kinds the spec names, same detector shape as the PR ones.
+
+function detectIssueAssigned(issue: any, for_user: string) {
+  const assignees: string[] = issue.assignees || []
+  if (!assignees.includes(for_user)) {
+    return null
+  }
+  return {
+    kind: 'issue.assigned', subject_id: issue.id, title: issue.title, url: issue.url,
+    actor: issue.author, updated_at: issue.updated_at,
+    facts: { title: issue.title, state: issue.state, assignees },
+    payload: { assignees },
+  }
+}
+
+// Not mutually exclusive with assigned by spec definition, but skipping the
+// already-assigned case avoids two items for the same "you're on this"
+// signal - same reasoning as pr.review_requested/pr.inbound.
+function detectIssueMentioned(issue: any, for_user: string) {
+  const assignees: string[] = issue.assignees || []
+  if (assignees.includes(for_user)) {
+    return null
+  }
+  const body: string = issue.body || ''
+  if (!body.toLowerCase().includes('@' + for_user.toLowerCase())) {
+    return null
+  }
+  return {
+    kind: 'issue.mentioned', subject_id: issue.id, title: issue.title, url: issue.url,
+    actor: issue.author, updated_at: issue.updated_at,
+    facts: { title: issue.title, state: issue.state, mentioned: true },
+    payload: {},
+  }
+}
+
+// Fleet-health signal, not for_user-specific (like repo.drift would be) -
+// every synced issue with zero labels gets one, regardless of who's asking.
+function detectIssueUntriaged(issue: any, _for_user: string) {
+  const labels: string[] = issue.labels || []
+  if (labels.length > 0) {
+    return null
+  }
+  return {
+    kind: 'issue.untriaged', subject_id: issue.id, title: issue.title, url: issue.url,
+    actor: issue.author, updated_at: issue.updated_at,
+    facts: { title: issue.title, state: issue.state, labels: [] },
+    payload: {},
+  }
+}
+
+const ISSUE_DETECTORS = [detectIssueAssigned, detectIssueMentioned, detectIssueUntriaged]
+
+module.exports = { PR_DETECTORS, ISSUE_DETECTORS, priorityFor }
