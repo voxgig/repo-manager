@@ -303,7 +303,7 @@ class VgInbox extends HTMLElement {
       ev.preventDefault()
       this.closeMergeConfirm()
     }
-    else if ('Enter' === ev.key && !this.mergeConfirm.loading) {
+    else if ('Enter' === ev.key && !this.mergeConfirm.loading && !this.mergeBlocked()) {
       ev.preventDefault()
       this.confirmMerge()
     }
@@ -496,7 +496,21 @@ class VgInbox extends HTMLElement {
     this.render()
   }
 
+  // SPEC §13.2 only offers merge "when pr.ready_to_merge" - we don't derive
+  // that kind (needs checks/reviews the SDK doesn't model), but GitHub's own
+  // mergeable flag is real data we already fetch for the modal, so block on
+  // it rather than let the confirm through unconditionally. GitHub would
+  // reject the merge call anyway - this makes that visible before the click,
+  // not after (S13).
+  mergeBlocked() {
+    return !!this.mergeConfirm && !this.mergeConfirm.loading &&
+      false === (this.mergeConfirm.pr && this.mergeConfirm.pr.mergeable)
+  }
+
   async confirmMerge() {
+    if (this.mergeBlocked()) {
+      return
+    }
     const { item } = this.mergeConfirm
     this.mergeConfirm = null
     await this.runAction(() => Api.mergeItem(item.id), 'merged')
@@ -865,12 +879,20 @@ class VgInbox extends HTMLElement {
   // Merge confirmation (04-merge-confirm.png, S13): irreversible, so it
   // states real facts (mergeable state, commit count) rather than just the
   // title - reviews/checks are left out, same reason as the detail page.
+  // SPEC §13.2 only offers merge "when pr.ready_to_merge"; we don't derive
+  // that kind, but blocking on GitHub's own mergeable:false here is the real
+  // data we do have - see mergeBlocked().
   renderMergeConfirm() {
     const { item, pr, loading } = this.mergeConfirm
+    const blocked = this.mergeBlocked()
     const mergeLine = loading
       ? 'checking mergeability…'
       : pr
-        ? (true === pr.mergeable ? 'no conflicts' : false === pr.mergeable ? 'has conflicts' : 'mergeable state unknown')
+        ? (true === pr.mergeable
+            ? 'no conflicts'
+            : false === pr.mergeable
+              ? `can't merge — ${esc(pr.mergeable_state || 'not mergeable')}`
+              : 'mergeable state unknown')
         : 'could not load PR detail'
 
     return `
@@ -879,13 +901,13 @@ class VgInbox extends HTMLElement {
           <div class="vg-merge-title">Merge #${esc(item.subject_id)} into ${esc((pr && pr.base_ref) || '…')}?</div>
           <div class="vg-merge-sub">${esc(item.repo || '')}${item.actor ? ' · @' + esc(item.actor) : ''}</div>
           <div class="vg-merge-status">
-            <div>${mergeLine}</div>
+            <div${blocked ? ' class="vg-merge-blocked"' : ''}>${mergeLine}</div>
             ${!loading && pr && undefined !== pr.commits ? `<div>${pr.commits} commit${1 === pr.commits ? '' : 's'}</div>` : ''}
           </div>
           <div class="vg-merge-warning">⚠ A merge cannot be undone.</div>
           <div class="vg-merge-row">
             <button class="vg-merge-cancel">Cancel <kbd>Esc</kbd></button>
-            <button class="vg-merge-go"${loading ? ' disabled' : ''}>Merge #${esc(item.subject_id)} <kbd>Enter</kbd></button>
+            <button class="vg-merge-go"${loading || blocked ? ' disabled' : ''}>Merge #${esc(item.subject_id)} <kbd>Enter</kbd></button>
           </div>
         </div>
       </div>`

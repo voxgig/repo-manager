@@ -73,6 +73,7 @@
   display: flex; align-items: center; gap: 0.5rem; }
 .vg-merge-go { background: var(--vg-primary); border-color: var(--vg-primary); color: #fff; font-weight: 700; }
 .vg-merge-go:disabled { opacity: 0.5; cursor: default; }
+.vg-merge-blocked { color: var(--vg-primary-dark); font-weight: 600; }
 
 .vg-inbox-shell { display: flex; flex: 1; min-height: 0; }
 
