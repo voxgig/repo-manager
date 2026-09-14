@@ -36,6 +36,11 @@ const SYNC = { aim: 'inbox', sync: 'item', repo_ids: ['r1'], forge: 'mem', for_u
 // (maintainer1's own 20-day-old PR - pr.stale).
 const SYNC_R2 = { aim: 'inbox', sync: 'item', repo_ids: ['r2'], forge: 'mem', for_user: 'maintainer1' }
 
+// r3 is issue-only: i6 (assigned to maintainer1, no labels - both assigned
+// AND untriaged), i7 (mentions @maintainer1, not assigned, labeled), i8
+// (nobody's on it, no labels - untriaged only). See forge_mem.ts.
+const SYNC_R3 = { aim: 'inbox', sync: 'item', repo_ids: ['r3'], forge: 'mem', for_user: 'maintainer1' }
+
 
 describe('inbox', () => {
 
@@ -245,6 +250,64 @@ describe('inbox', () => {
     const listed = await seneca.post('aim:inbox,list:item')
     expect(listed.items.length).equal(1)
     expect(listed.items[0].kind).equal('pr.review_requested')
+
+    await seneca.close()
+  })
+
+
+  // Issue item kinds (SPEC §12): issue.assigned, issue.mentioned,
+  // issue.untriaged - same derivation machinery as the PR kinds, over
+  // aim:forge,list:issue instead of list:pr.
+
+  test('sync-detects-assigned-mentioned-and-untriaged-issues', async () => {
+    const seneca = await makeSeneca()
+
+    const synced = await seneca.post(SYNC_R3)
+    expect(synced.ok).true()
+    // i6 fires both assigned AND untriaged (not mutually exclusive by
+    // design - see detect.ts), i7 fires mentioned, i8 fires untriaged.
+    expect(synced.created).equal(4)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    const byKind: any = {}
+    for (const it of listed.items) {
+      byKind[it.kind] = byKind[it.kind] || []
+      byKind[it.kind].push(it)
+    }
+
+    expect(byKind['issue.assigned'].length).equal(1)
+    expect(byKind['issue.assigned'][0].subject_id).equal('i6')
+    expect(byKind['issue.assigned'][0].priority).equal('soon')
+
+    expect(byKind['issue.mentioned'].length).equal(1)
+    expect(byKind['issue.mentioned'][0].subject_id).equal('i7')
+    expect(byKind['issue.mentioned'][0].priority).equal('soon')
+
+    expect(byKind['issue.untriaged'].length).equal(2)
+    const untriagedIds = byKind['issue.untriaged'].map((it: any) => it.subject_id).sort()
+    expect(untriagedIds).equal(['i6', 'i8'])
+    expect(byKind['issue.untriaged'][0].priority).equal('later')
+
+    await seneca.close()
+  })
+
+
+  test('issue-assigned-resolves-once-a-label-is-added', async () => {
+    const seneca = await makeSeneca()
+
+    await seneca.post(SYNC_R3)
+    const before = await seneca.post('aim:inbox,list:item')
+    expect(before.items.filter((it: any) => 'issue.untriaged' === it.kind).length).equal(2)
+
+    // i8 gets triaged (a label appears) - the untriaged condition for it
+    // disappears, same auto-resolve path as a merged PR.
+    await seneca.post('aim:forge,label:issue,forge:mem', { issue_id: 'i8', labels: ['bug'] })
+    const resynced = await seneca.post(SYNC_R3)
+    expect(resynced.resolved).equal(1)
+
+    const after = await seneca.post('aim:inbox,list:item')
+    expect(after.items.filter((it: any) => 'issue.untriaged' === it.kind).length).equal(1)
+    expect(after.items.some((it: any) => 'i8' === it.subject_id)).false()
 
     await seneca.close()
   })
