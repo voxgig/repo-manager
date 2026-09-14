@@ -15,7 +15,7 @@ module.exports = function make_sync_item() {
     const seneca = this
 
     const repo_ids: string[] = msg.repo_ids || []
-    const forge: string = msg.forge || 'github'
+    const forge: string = msg.forge || process.env.REPO_MANAGER_FORGE || 'github'
     const for_user: string = msg.for_user
 
     const seen = new Set<string>()

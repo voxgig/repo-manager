@@ -6,7 +6,7 @@ module.exports = function make_list_issue() {
   return async function list_issue(this: any, msg: any) {
     const seneca = this
     const repo_ids: string[] = msg.repo_ids || []
-    const forge: string = msg.forge || 'github'
+    const forge: string = msg.forge || process.env.REPO_MANAGER_FORGE || 'github'
 
     const issues: any[] = []
     for (const repo_id of repo_ids) {

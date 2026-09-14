@@ -1,6 +1,8 @@
 // Headless CLI: `inbox sync`, `inbox list`, `inbox dismiss <id>`.
 // Boots the same services as the local runner, no web gateway or REPL.
 
+import Path from 'node:path'
+
 import Seneca from 'seneca'
 import { Local } from '@voxgig/system'
 
@@ -23,6 +25,25 @@ async function run() {
   seneca.context.srvname = 'all'
 
   basic(seneca)
+
+  // See src/env/web/web.ts for why: env.local.js backfills process.env so
+  // GITHUB_TOKEN doesn't need re-exporting every session.
+  seneca.use('env', {
+    var: (valid: any) => ({
+      GITHUB_TOKEN: valid.Skip(String),
+      REPO_MANAGER_REPOS: valid.Skip(String),
+      REPO_MANAGER_GITHUB_USER: valid.Skip(String),
+    }),
+    file: Path.join(__dirname, '..', '..', '..', 'env.local.js') + ';?',
+  })
+  // Plugin init runs during ready(), not use() - see web.ts for why this
+  // needs its own ready() before forge_github reads process.env.GITHUB_TOKEN.
+  await seneca.ready()
+  for (const [k, v] of Object.entries(seneca.context.SenecaEnv.var)) {
+    if (undefined !== v) {
+      process.env[k] = v as string
+    }
+  }
 
   seneca.use(require('../../forge/forge_github'), {
     provider: { sdk: { headers: { Authorization: 'Bearer ' + (process.env.GITHUB_TOKEN || '') } } },

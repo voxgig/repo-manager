@@ -11,3 +11,7 @@ dist-test
 # voxgig-model: model-config.aon is the hand-authored source (build actions);
 # model-config.json is compiled from it by model-build.
 **/.model-config/model-config.json
+
+# local @seneca/env defaults (backend/env.local.js) - never committed, see
+# backend/env.local.example.js for the shape.
+**/env.local.js

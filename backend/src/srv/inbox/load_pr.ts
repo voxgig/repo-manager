@@ -8,7 +8,7 @@ module.exports = function make_load_pr() {
   return async function load_pr(this: any, msg: any) {
     const seneca = this
     const res = await seneca.post({
-      aim: 'forge', load: 'pr', forge: msg.forge || 'github',
+      aim: 'forge', load: 'pr', forge: msg.forge || process.env.REPO_MANAGER_FORGE || 'github',
       repo_id: msg.repo_id, pr_id: msg.pr_id,
     })
     return res.ok ? { ok: true, pr: res.pr } : { ok: false, why: res.why || 'load-failed' }
