@@ -7,10 +7,14 @@ A [Seneca](https://senecajs.org) microservices backend with a model-driven entit
 the toolchain versions `metsitaba/todo-app` runs (`@voxgig/model` 11.0.0, `@voxgig/system`
 1.15.0, `@voxgig/build` 4.16.0).
 
-The project currently starts empty: the structure is in place (model, environments, generation
-actions, tests), but there are no entities, services, or messages yet beyond the scaffold's
-commented examples. See `docs/inventory.md` for the fleet inventory driving what gets built
-first.
+Stage 1 (the walking skeleton) is done: a `rpm/item` work-item entity, a `srv/inbox` service
+(sync/list/dismiss, full derive/auto-resolve), a real `forge:github` plugin alongside the
+`forge:mem` test double, a vanilla-web-components `frontend/` driven end-to-end in a browser, and
+a generated `sdk/` (TypeScript/Go/Go-MCP) client for the bespoke inbox API. Stage 2 ("the primary
+loop") is underway: every `aim:forge,*` action (`open:pr`, `merge:pr`, `comment:issue`,
+`label:issue`, `assign:issue`, `close:issue`, `approve:pr`, `request:review`) is now real against
+GitHub, routed through `@seneca/github-provider`'s entity-store rather than fixture-backed.
+See `docs/inventory.md` for the fleet inventory driving what gets built first.
 
 ## Documentation
 
@@ -34,8 +38,13 @@ repo-manager/
       env/shared/basic.ts   core Seneca setup (entity + user)
       env/local/local.ts    local runner (in-memory store)
       env/lambda/lambda.ts  Lambda bootstrap for generated handlers
-      srv/                  services (empty - see the commented example)
+      env/cli/              headless inbox CLI
+      env/web/              REST + web gateway (bespoke, no generic aim:ent surface)
+      forge/                forge:github - real GitHub actions via @seneca/github-provider
+      srv/inbox/            sync/list/dismiss the rpm/item work-item entity
     test/unit/  unit tests
+  frontend/     vanilla web-components UI (seneca-browser), no framework
+  sdk/          sdkgen-generated ts/go/go-mcp client for the inbox API
 ```
 
 ## Build, test, run
