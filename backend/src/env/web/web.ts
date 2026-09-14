@@ -48,6 +48,7 @@ async function run() {
       GITHUB_TOKEN: valid.Skip(String),
       REPO_MANAGER_REPOS: valid.Skip(String),
       REPO_MANAGER_GITHUB_USER: valid.Skip(String),
+      REPO_MANAGER_FORGE: valid.Skip(String),
     }),
     file: Path.join(__dirname, '..', '..', '..', 'env.local.js') + ';?',
   })
@@ -72,9 +73,18 @@ async function run() {
     })
     .use('gateway-express', {})
 
-  seneca.use(require('../../forge/forge_github'), {
-    provider: { sdk: { headers: { Authorization: 'Bearer ' + (process.env.GITHUB_TOKEN || '') } } },
-  })
+  // REPO_MANAGER_FORGE=mem runs against the same in-memory fixture data the
+  // test suite uses (test/fixtures/forge_mem.ts) instead of real GitHub -
+  // no token needed, lets a second instance run alongside the real one for
+  // demo purposes. Defaults to the real forge, same as always.
+  if ('mem' === process.env.REPO_MANAGER_FORGE) {
+    seneca.use(require('../../../dist-test/fixtures/forge_mem'))
+  }
+  else {
+    seneca.use(require('../../forge/forge_github'), {
+      provider: { sdk: { headers: { Authorization: 'Bearer ' + (process.env.GITHUB_TOKEN || '') } } },
+    })
+  }
 
   seneca.use(Local, {
     srv: {
