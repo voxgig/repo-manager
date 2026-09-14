@@ -11,7 +11,7 @@ module.exports = function forge_mem(this: any) {
       url: 'https://example.com/r1/pull/1', author: 'contributor1',
       requested_reviewers: ['maintainer1'], updated_at: 1700000000000,
       body: 'Fixes the thing.', head_ref: 'fix-thing', base_ref: 'main',
-      additions: 12, deletions: 3, changed_files: 2,
+      additions: 12, deletions: 3, changed_files: 2, commits: 2,
       mergeable: true, mergeable_state: 'clean', draft: false, merged: false,
     },
     // r2's PRs are kept out of r1 so existing single-repo sync tests are

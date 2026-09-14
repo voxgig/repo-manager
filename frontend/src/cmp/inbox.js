@@ -93,6 +93,7 @@ class VgInbox extends HTMLElement {
     this.paletteIndex = 0
     this.statusMsg = ''
     this.composer = null
+    this.mergeConfirm = null
     this.detail = null
     this.detailToken = 0
     this.lastSyncedAt = null
@@ -243,6 +244,11 @@ class VgInbox extends HTMLElement {
       return
     }
 
+    if (this.mergeConfirm) {
+      this.onMergeConfirmKeydown(ev)
+      return
+    }
+
     if (this.composer) {
       this.onComposerKeydown(ev)
       return
@@ -289,6 +295,17 @@ class VgInbox extends HTMLElement {
     else if (!def.picker && 'Enter' === ev.key && (!def.multiline || ev.metaKey || ev.ctrlKey)) {
       ev.preventDefault()
       this.submitComposer()
+    }
+  }
+
+  onMergeConfirmKeydown(ev) {
+    if ('Escape' === ev.key) {
+      ev.preventDefault()
+      this.closeMergeConfirm()
+    }
+    else if ('Enter' === ev.key && !this.mergeConfirm.loading) {
+      ev.preventDefault()
+      this.confirmMerge()
     }
   }
 
@@ -448,6 +465,11 @@ class VgInbox extends HTMLElement {
     await this.runAction(() => Api.approveItem(item.id), 'approved')
   }
 
+  // Irreversible (SPEC S13) - confirm explicitly (04-merge-confirm.png)
+  // rather than let a stray keypress merge something. Fetches the PR's own
+  // detail (mergeable state, commit count) so the confirmation states real
+  // facts, not just the title - reviews/checks are left out, same reason
+  // as the detail page: neither API is modeled in the SDK yet.
   async mergeFocused() {
     if (!this.requireItemActions()) {
       return
@@ -456,11 +478,27 @@ class VgInbox extends HTMLElement {
     if (!item) {
       return
     }
-    // Irreversible (SPEC S13) - confirm explicitly (K5) rather than let a
-    // stray keypress merge something.
-    if (!window.confirm(`Merge "${item.title}"? This cannot be undone.`)) {
+    this.mergeConfirm = { item, pr: null, loading: true }
+    this.render()
+    const pr = await Api.loadPr(item.repo, item.subject_id)
+    if (!this.mergeConfirm || this.mergeConfirm.item !== item) {
       return
     }
+    this.mergeConfirm = { item, pr, loading: false }
+    this.render()
+  }
+
+  closeMergeConfirm() {
+    if (!this.mergeConfirm) {
+      return
+    }
+    this.mergeConfirm = null
+    this.render()
+  }
+
+  async confirmMerge() {
+    const { item } = this.mergeConfirm
+    this.mergeConfirm = null
     await this.runAction(() => Api.mergeItem(item.id), 'merged')
   }
 
@@ -595,6 +633,7 @@ class VgInbox extends HTMLElement {
         </div>
         ${this.paletteOpen ? this.renderPalette() : ''}
         ${this.composer ? this.renderComposer() : ''}
+        ${this.mergeConfirm ? this.renderMergeConfirm() : ''}
       </div>`
   }
 
@@ -687,7 +726,8 @@ class VgInbox extends HTMLElement {
         </footer>
       </div>
       ${this.paletteOpen ? this.renderPalette() : ''}
-      ${this.composer ? this.renderComposer() : ''}`
+      ${this.composer ? this.renderComposer() : ''}
+      ${this.mergeConfirm ? this.renderMergeConfirm() : ''}`
   }
 
   renderDetailBody(item, pr) {
@@ -809,6 +849,46 @@ class VgInbox extends HTMLElement {
       this.querySelector('.vg-composer').onclick = (ev) => ev.stopPropagation()
       this.querySelector('.vg-composer-cancel').onclick = () => this.closeComposer()
     }
+
+    if (this.mergeConfirm) {
+      const backdrop = this.querySelector('.vg-merge-backdrop')
+      backdrop.onclick = () => this.closeMergeConfirm()
+      this.querySelector('.vg-merge-confirm').onclick = (ev) => ev.stopPropagation()
+      this.querySelector('.vg-merge-cancel').onclick = () => this.closeMergeConfirm()
+      const goBtn = this.querySelector('.vg-merge-go')
+      if (goBtn) {
+        goBtn.onclick = () => this.confirmMerge()
+      }
+    }
+  }
+
+  // Merge confirmation (04-merge-confirm.png, S13): irreversible, so it
+  // states real facts (mergeable state, commit count) rather than just the
+  // title - reviews/checks are left out, same reason as the detail page.
+  renderMergeConfirm() {
+    const { item, pr, loading } = this.mergeConfirm
+    const mergeLine = loading
+      ? 'checking mergeability…'
+      : pr
+        ? (true === pr.mergeable ? 'no conflicts' : false === pr.mergeable ? 'has conflicts' : 'mergeable state unknown')
+        : 'could not load PR detail'
+
+    return `
+      <div class="vg-merge-backdrop">
+        <div class="vg-merge-confirm">
+          <div class="vg-merge-title">Merge #${esc(item.subject_id)} into ${esc((pr && pr.base_ref) || '…')}?</div>
+          <div class="vg-merge-sub">${esc(item.repo || '')}${item.actor ? ' · @' + esc(item.actor) : ''}</div>
+          <div class="vg-merge-status">
+            <div>${mergeLine}</div>
+            ${!loading && pr && undefined !== pr.commits ? `<div>${pr.commits} commit${1 === pr.commits ? '' : 's'}</div>` : ''}
+          </div>
+          <div class="vg-merge-warning">⚠ A merge cannot be undone.</div>
+          <div class="vg-merge-row">
+            <button class="vg-merge-cancel">Cancel <kbd>Esc</kbd></button>
+            <button class="vg-merge-go"${loading ? ' disabled' : ''}>Merge #${esc(item.subject_id)} <kbd>Enter</kbd></button>
+          </div>
+        </div>
+      </div>`
   }
 
   renderComposer() {

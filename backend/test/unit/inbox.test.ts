@@ -192,6 +192,7 @@ describe('inbox', () => {
     expect(res.pr.additions).equal(12)
     expect(res.pr.deletions).equal(3)
     expect(res.pr.changed_files).equal(2)
+    expect(res.pr.commits).equal(2)
     expect(res.pr.mergeable).true()
     expect(res.pr.mergeable_state).equal('clean')
 
