@@ -55,6 +55,10 @@
 .vg-composer-pick { text-align: left; padding: 0.5rem 0.7rem; border-radius: 6px; border: 1px solid var(--vg-border);
   background: var(--vg-bg); color: var(--vg-text); cursor: pointer; font: inherit; font-size: 0.9rem; }
 .vg-composer-pick:hover { background: var(--vg-accent-bg); color: var(--vg-primary); }
+.vg-composer-replies { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+.vg-composer-reply { padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid var(--vg-border);
+  background: var(--vg-bg); color: var(--vg-muted); cursor: pointer; font: inherit; font-size: 0.78rem; }
+.vg-composer-reply:hover { background: var(--vg-accent-bg); color: var(--vg-primary); border-color: var(--vg-primary); }
 
 /* ---- merge confirmation (04-merge-confirm.png, S13) ---- */
 

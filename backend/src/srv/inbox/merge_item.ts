@@ -1,4 +1,4 @@
-const loadItemForge = require('./item_forge')
+const { loadItemForge, markResponded } = require('./item_forge')
 
 module.exports = function make_merge_item() {
   return async function merge_item(this: any, msg: any) {
@@ -12,6 +12,8 @@ module.exports = function make_merge_item() {
 
     // Merging always resolves the review-needed condition; no undo (SPEC S13).
     item.state = 'done'
+    item.last_action = 'merge'
+    markResponded(item)
     await item.save$()
 
     return { ok: true, item }

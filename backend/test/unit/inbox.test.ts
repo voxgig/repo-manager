@@ -469,4 +469,135 @@ describe('inbox', () => {
     await seneca.close()
   })
 
+
+  // Undo (SPEC §13.3): only dismiss/snooze are reversible - pure local
+  // state, no forge call. close/merge land on the same 'done' state but
+  // must NOT be undoable (S13) - msg.kind is what tells them apart.
+
+  test('undo-dismiss-reopens-the-item', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    await seneca.post('aim:inbox,dismiss:item', { id })
+    const undone = await seneca.post('aim:inbox,undo:item', { id, kind: 'dismiss' })
+    expect(undone.ok).true()
+    expect(undone.item.state).equal('open')
+
+    const after = await seneca.post('aim:inbox,list:item')
+    expect(after.items.length).equal(1)
+
+    await seneca.close()
+  })
+
+
+  test('undo-snooze-reopens-and-clears-snooze-until', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    await seneca.post('aim:inbox,snooze:item', { id, until: Date.now() + 3600000 })
+    const undone = await seneca.post('aim:inbox,undo:item', { id, kind: 'snooze' })
+    expect(undone.ok).true()
+    expect(undone.item.state).equal('open')
+    expect(undone.item.snooze_until).undefined()
+
+    await seneca.close()
+  })
+
+
+  test('undo-refuses-a-merged-item-even-though-state-is-also-done', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    await seneca.post('aim:inbox,merge:item', { id })
+    // A stray/replayed undo:dismiss must not resurrect an irreversible merge.
+    const undone = await seneca.post('aim:inbox,undo:item', { id, kind: 'dismiss' })
+    expect(undone.ok).false()
+    expect(undone.why).equal('nothing-to-undo')
+
+    await seneca.close()
+  })
+
+
+  test('undo-on-unknown-id-reports-not-found', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,undo:item', { id: 'does-not-exist', kind: 'dismiss' })
+    expect(res.ok).false()
+    expect(res.why).equal('not-found')
+
+    await seneca.close()
+  })
+
+
+  // first_response_at (SPEC §12, drives the aging view §12.4): set by the
+  // first response an outside party can see - approve/comment/close/merge -
+  // never by label or priority alone, and never overwritten once set.
+
+  test('comment-sets-first-response-at-once-and-only-once', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const before = (await seneca.post('aim:inbox,list:item')).items[0]
+    expect(before.first_response_at).undefined()
+
+    const first = await seneca.post('aim:inbox,comment:item', { id, body: 'looking into it' })
+    expect(first.item.first_response_at).exist()
+    const firstAt = first.item.first_response_at
+
+    const second = await seneca.post('aim:inbox,comment:item', { id, body: 'a follow-up' })
+    expect(second.item.first_response_at).equal(firstAt)
+
+    await seneca.close()
+  })
+
+
+  test('label-item-does-not-set-first-response-at', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    const id = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    await seneca.post('aim:inbox,label:item', { id, labels: ['needs-work'] })
+    const after = (await seneca.post('aim:inbox,list:item')).items[0]
+    expect(after.first_response_at).undefined()
+
+    await seneca.close()
+  })
+
+
+  // Saved replies (SPEC §12.4): rpm/reply, seeded with the spec's five
+  // named intents on first use.
+
+  test('list-reply-seeds-the-five-spec-named-intents-on-first-use', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:reply')
+    expect(res.ok).true()
+    expect(res.replies.length).equal(5)
+
+    const intents = res.replies.map((r: any) => r.intent).sort()
+    expect(intents).equal([
+      'duplicate-of', 'needs-more-info', 'out-of-scope', 'security-ack', 'thanks-and-merged',
+    ])
+    for (const r of res.replies) {
+      expect(r.body.includes('{author}')).true()
+    }
+
+    await seneca.close()
+  })
+
+
+  test('list-reply-does-not-reseed-on-a-second-call', async () => {
+    const seneca = await makeSeneca()
+
+    await seneca.post('aim:inbox,list:reply')
+    const again = await seneca.post('aim:inbox,list:reply')
+    expect(again.replies.length).equal(5)
+
+    await seneca.close()
+  })
+
 })

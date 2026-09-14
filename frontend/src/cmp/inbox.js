@@ -1,9 +1,10 @@
 // The inbox: Stage 1's one real view (SPEC.REPO-MANAGER.md §12,
 // MOCKUPS.md flow 1). A list + a focus detail panel, driven by the SPEC
-// §13.2 key bindings this stage has forge support for (j/k/o/e/a/m/c/l/C/s),
-// local search (§13.3), a Snoozed view alongside Inbox, and a Cmd-K command
-// bar (SPEC §13.4) reaching the same set. No undo, no campaigns, no
-// multi-select, no `g`-prefixed view-switch chords - deliberately shallow.
+// §13.2 key bindings this stage has forge support for
+// (j/k/o/e/a/m/c/l/C/s/u), local search (§13.3), Snoozed/Aging views
+// alongside Inbox, and a Cmd-K command bar (SPEC §13.4) reaching the same
+// set. No campaigns, no multi-select, no `g`-prefixed view-switch chords -
+// deliberately shallow.
 
 import * as Api from '../api.js'
 
@@ -35,6 +36,7 @@ const INERT_SECTIONS = ['Drift', 'Campaigns', 'Runs']
 const VIEWS = {
   inbox: { title: 'Inbox', itemActions: true },
   snoozed: { title: 'Snoozed', itemActions: true },
+  aging: { title: 'Aging', itemActions: true },
   pulls: { title: 'Pull requests', itemActions: false },
   issues: { title: 'Issues', itemActions: false },
 }
@@ -46,15 +48,29 @@ const BROWSE_LOADERS = {
   issues: () => Api.listIssues(),
 }
 
+// Aging (SPEC §12.4, §13.1 "the unanswered, oldest first"): kinds where
+// someone OTHER than the maintainer is waiting on a response - not
+// pr.review_requested/pr.stale, which are about the maintainer's own work.
+const AGING_KINDS = ['pr.inbound', 'issue.assigned', 'issue.mentioned', 'issue.untriaged']
+
+// The open items still waiting on a first response, oldest first - a
+// filter+sort over the same open-item set the Inbox view already has, not
+// a separate fetch.
+function agingItems(items) {
+  return items
+    .filter((it) => AGING_KINDS.includes(it.kind) && !it.first_response_at)
+    .sort((a, b) => (a.first_seen || 0) - (b.first_seen || 0))
+}
+
 // Composer kinds. Text kinds (title, multiline) render an input/textarea -
 // label is single-line (Enter sends), comment/close are multi-line
 // (Cmd-Enter sends, matching the spec's "reply" composer convention - plain
 // Enter stays a newline). snooze (title, picker) renders preset buttons
 // instead - "when" is a choice, not something worth typing.
 const COMPOSER = {
-  comment: { title: 'Comment', multiline: true },
+  comment: { title: 'Comment', multiline: true, replies: true },
   label: { title: 'Label (comma-separated)', multiline: false },
-  close: { title: 'Close - reason (posted as a comment first)', multiline: true },
+  close: { title: 'Close - reason (posted as a comment first)', multiline: true, replies: true },
   snooze: { title: 'Snooze', picker: true },
 }
 
@@ -82,6 +98,7 @@ const KEY_ACTIONS = {
   l: { prevent: true, run: (c) => c.openComposer('label') },
   C: { prevent: true, run: (c) => c.openComposer('close') },
   s: { prevent: true, run: (c) => c.openComposer('snooze') },
+  u: { run: (c) => c.undoLast() },
   '/': { prevent: true, run: (c) => c.focusSearch() },
 }
 
@@ -100,6 +117,12 @@ class VgInbox extends HTMLElement {
     this.detail = null
     this.detailToken = 0
     this.lastSyncedAt = null
+    // Undo (SPEC §13.3): the one most recent reversible action, cleared on
+    // use or on any full reload (its item may no longer be what it was).
+    this.lastReversible = null
+    // Saved replies (SPEC §12.4) - fetched once, lazily, the first time a
+    // comment/close composer opens.
+    this.replies = null
     // Sidebar badge counts, one per real view - kept separate from
     // this.items (the ACTIVE view's rows) so every nav entry can show a
     // real count, not just the one currently open.
@@ -130,13 +153,20 @@ class VgInbox extends HTMLElement {
 
   async load() {
     // A full reload re-fetches every item as a new object - any open detail
-    // page would be pointing at a stale reference, so drop it.
+    // page would be pointing at a stale reference, so drop it. Same for a
+    // pending undo: the item it targeted may not even be in this set anymore.
     this.detail = null
+    this.lastReversible = null
     const browse = BROWSE_LOADERS[this.view]
     if (browse) {
       // Already sorted server-side (most recently updated first) - no
       // priority to rank by on a plain browse list.
       this.items = await browse()
+    }
+    else if ('aging' === this.view) {
+      // Same open-item set the Inbox view fetches, filtered/sorted
+      // differently - not a separate backend message.
+      this.items = agingItems(await Api.listInbox('open'))
     }
     else {
       this.items = await Api.listInbox(this.viewState())
@@ -158,7 +188,10 @@ class VgInbox extends HTMLElement {
     const [inboxItems, snoozedItems, pulls, issues] = await Promise.all([
       Api.listInbox('open'), Api.listInbox('snoozed'), Api.listPulls(), Api.listIssues(),
     ])
-    this.counts = { inbox: inboxItems.length, snoozed: snoozedItems.length, pulls: pulls.length, issues: issues.length }
+    this.counts = {
+      inbox: inboxItems.length, snoozed: snoozedItems.length,
+      aging: agingItems(inboxItems).length, pulls: pulls.length, issues: issues.length,
+    }
     this.render()
   }
 
@@ -233,6 +266,7 @@ class VgInbox extends HTMLElement {
       { id: 'sync', label: 'sync now', run: () => this.runSync() },
       { id: 'view-inbox', label: 'view: inbox', run: () => this.switchView('inbox') },
       { id: 'view-snoozed', label: 'view: snoozed', run: () => this.switchView('snoozed') },
+      { id: 'view-aging', label: 'view: aging', run: () => this.switchView('aging') },
       { id: 'view-pulls', label: 'view: pull requests', run: () => this.switchView('pulls') },
       { id: 'open', label: 'open detail (Enter)', run: () => this.openDetail() },
       { id: 'open-external', label: 'open on forge (o)', run: () => this.openExternal() },
@@ -243,6 +277,7 @@ class VgInbox extends HTMLElement {
       { id: 'label', label: 'label (l)', run: () => this.openComposer('label') },
       { id: 'close', label: 'close with reason (C)', run: () => this.openComposer('close') },
       { id: 'snooze', label: 'snooze (s)', run: () => this.openComposer('snooze') },
+      { id: 'undo', label: 'undo (u)', run: () => this.undoLast() },
     ]
   }
 
@@ -431,8 +466,35 @@ class VgInbox extends HTMLElement {
       return
     }
     await Api.dismissItem(item.id)
+    this.lastReversible = { kind: 'dismiss', id: item.id }
     this.removeItem(item.id)
     this.render()
+  }
+
+  // SPEC §13.3: undo covers what a definition declares reversible - only
+  // dismiss/snooze here (see undo_item.ts). Reloads the current view on
+  // success rather than patching the item back in by hand.
+  async undoLast() {
+    if (!this.lastReversible) {
+      return
+    }
+    const { kind, id } = this.lastReversible
+    this.lastReversible = null
+    this.statusMsg = 'undoing…'
+    this.render()
+    const res = await Api.undoItem(id, kind)
+    if (!res || !res.ok) {
+      this.statusMsg = `undo failed: ${(res && res.why) || 'error'}`
+      this.render()
+    }
+    else {
+      this.statusMsg = 'undone'
+      await this.load()
+    }
+    setTimeout(() => {
+      this.statusMsg = ''
+      this.render()
+    }, 4000)
   }
 
   // Drops an item out of the currently loaded set (by id, not focusIndex -
@@ -454,7 +516,9 @@ class VgInbox extends HTMLElement {
   // item from the current view when the service reports a state that no
   // longer belongs there (merge/close/snooze leave open; a snoozed item
   // leaving the Snoozed view once it wakes is sync's job, not this).
-  async runAction(fn, verb) {
+  // `reversible`, when passed, names the undo kind (SPEC §13.3) - only
+  // dismiss/snooze ever pass one; see undo_item.ts for why the rest can't.
+  async runAction(fn, verb, reversible) {
     this.statusMsg = verb + '…'
     this.render()
     const res = await fn()
@@ -463,6 +527,9 @@ class VgInbox extends HTMLElement {
     }
     else {
       this.statusMsg = verb
+      if (reversible) {
+        this.lastReversible = { kind: reversible, id: res.item.id }
+      }
       if (res.item && res.item.state !== this.viewState()) {
         this.removeItem(res.item.id)
       }
@@ -536,7 +603,7 @@ class VgInbox extends HTMLElement {
     await this.runAction(() => Api.mergeItem(item.id), 'merged')
   }
 
-  openComposer(kind) {
+  async openComposer(kind) {
     if (!this.requireItemActions()) {
       return
     }
@@ -545,10 +612,35 @@ class VgInbox extends HTMLElement {
     }
     this.composer = { kind, value: '' }
     this.render()
+    // Saved replies (SPEC §12.4) - only comment/close use them; fetched
+    // once and cached, since the seeded set doesn't change at runtime.
+    if (COMPOSER[kind].replies && !this.replies) {
+      this.replies = await Api.listReplies()
+      if (this.composer && kind === this.composer.kind) {
+        this.render()
+      }
+    }
   }
 
   closeComposer() {
     this.composer = null
+    this.render()
+  }
+
+  // Fills the composer with a saved reply's template, {author}/{repo}
+  // resolved from the focused item - still editable before sending.
+  applyReply(id) {
+    if (!this.composer || !this.replies) {
+      return
+    }
+    const reply = this.replies.find((r) => r.id === id)
+    const item = this.visibleItems()[this.focusIndex]
+    if (!reply || !item) {
+      return
+    }
+    this.composer.value = reply.body
+      .replace(/\{author\}/g, item.actor || 'there')
+      .replace(/\{repo\}/g, item.repo || item.org_id || 'this repo')
     this.render()
   }
 
@@ -581,7 +673,7 @@ class VgInbox extends HTMLElement {
       return
     }
     const until = Date.now() + hours * 3600000
-    await this.runAction(() => Api.snoozeItem(item.id, until), 'snoozed')
+    await this.runAction(() => Api.snoozeItem(item.id, until), 'snoozed', 'snooze')
   }
 
   render() {
@@ -660,6 +752,7 @@ class VgInbox extends HTMLElement {
                 <span><kbd>l</kbd> label</span>
                 <span><kbd>C</kbd> close</span>
                 <span><kbd>s</kbd> snooze</span>` : ''}
+              ${this.lastReversible ? '<span><kbd>u</kbd> undo</span>' : ''}
               <span><kbd>/</kbd> search</span>
               <span><kbd>⌘K</kbd> commands</span>
             </footer>
@@ -756,6 +849,7 @@ class VgInbox extends HTMLElement {
             <span><kbd>s</kbd> snooze</span>
             <span><kbd>e</kbd> done</span>` : ''}
           <span><kbd>o</kbd> open on ${esc(item.source || 'forge')}</span>
+          ${this.lastReversible ? '<span><kbd>u</kbd> undo</span>' : ''}
           <span><kbd>Esc</kbd> back</span>
         </footer>
       </div>
@@ -876,6 +970,10 @@ class VgInbox extends HTMLElement {
         }
         input.focus()
         this.querySelector('.vg-composer-send').onclick = () => this.submitComposer()
+
+        for (const btn of this.querySelectorAll('.vg-composer-reply')) {
+          btn.onclick = () => this.applyReply(btn.dataset.reply)
+        }
       }
 
       const backdrop = this.querySelector('.vg-composer-backdrop')
@@ -958,6 +1056,10 @@ class VgInbox extends HTMLElement {
       <div class="vg-composer-backdrop">
         <div class="vg-composer">
           <div class="vg-composer-title">${esc(def.title)}</div>
+          ${def.replies && this.replies && this.replies.length ? `
+            <div class="vg-composer-replies">
+              ${this.replies.map((r) => `<button class="vg-composer-reply" data-reply="${esc(r.id)}">${esc(r.title)}</button>`).join('')}
+            </div>` : ''}
           ${def.multiline
             ? '<textarea class="vg-composer-input" rows="4"></textarea>'
             : '<input class="vg-composer-input" />'}
@@ -989,13 +1091,16 @@ class VgInbox extends HTMLElement {
   }
 
   renderRow(it, i) {
+    // Aging sorts by first_seen (how long they've waited), not updated_at
+    // (last activity) - show the field that's actually driving the order.
+    const shown = 'aging' === this.view ? it.first_seen : it.updated_at
     return `
       <div class="vg-inbox-row${i === this.focusIndex ? ' vg-focused' : ''}" data-i="${i}">
         <span class="vg-priority-dot vg-priority-${esc(it.priority || 'none')}"></span>
         <span class="vg-kind-badge ${kindClass(it.kind)}">${esc(kindLabel(it.kind))}</span>
         <span class="vg-inbox-repo">${esc(it.repo || it.org_id || '')}</span>
         <span class="vg-inbox-title">${esc(it.title)}</span>
-        <span class="vg-inbox-age">${age(it.updated_at)}</span>
+        <span class="vg-inbox-age">${age(shown)}</span>
       </div>`
   }
 

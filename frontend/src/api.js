@@ -133,6 +133,18 @@ async function snoozeItem(id, until) {
   return bus.post({ aim: 'web', on: 'inbox', snooze: 'item', id, until })
 }
 
+// Undo (SPEC §13.3) - only ever called with the kind of the action just
+// taken (dismiss/snooze); the backend refuses anything else (undo_item.ts).
+async function undoItem(id, kind) {
+  return bus.post({ aim: 'web', on: 'inbox', undo: 'item', id, kind })
+}
+
+// Saved replies (SPEC §12.4) - seeded server-side on first call.
+async function listReplies() {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'reply' })
+  return (r && r.ok && r.replies) || []
+}
+
 export {
   list,
   load,
@@ -151,6 +163,8 @@ export {
   labelItem,
   closeItem,
   snoozeItem,
+  undoItem,
+  listReplies,
   loadAuth,
   signin,
   signout,

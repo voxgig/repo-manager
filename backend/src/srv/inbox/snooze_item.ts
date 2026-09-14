@@ -15,6 +15,7 @@ module.exports = function make_snooze_item() {
     }
     item.state = 'snoozed'
     item.snooze_until = msg.until
+    item.last_action = 'snooze'
     await item.save$()
     return { ok: true, item }
   }

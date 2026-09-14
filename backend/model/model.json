@@ -331,6 +331,26 @@
             "aim": "inbox"
           },
           {
+            "undo": "item"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "list": "reply"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
             "list": "pr"
           }
         ]
@@ -454,6 +474,34 @@
           },
           {
             "dismiss": "item"
+          }
+        ]
+      },
+      {
+        "file": "./web_undo_item",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "undo": "item"
+          }
+        ]
+      },
+      {
+        "file": "./web_list_reply",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "list": "reply"
           }
         ]
       },

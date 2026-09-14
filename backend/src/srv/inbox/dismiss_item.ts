@@ -6,6 +6,9 @@ module.exports = function make_dismiss_item() {
       return { ok: false, why: 'not-found' }
     }
     item.state = 'done'
+    // undo_item.ts checks this, not just state - close/merge also land on
+    // 'done' but must never be undoable (S13).
+    item.last_action = 'dismiss'
     await item.save$()
     return { ok: true, item }
   }

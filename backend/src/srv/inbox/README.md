@@ -12,6 +12,8 @@ message maps to the action file named after its last pattern pair.
 | `aim:inbox,sync:item` | `sync_item.ts` |
 | `aim:inbox,list:item` | `list_item.ts` |
 | `aim:inbox,dismiss:item` | `dismiss_item.ts` |
+| `aim:inbox,undo:item` | `undo_item.ts` |
+| `aim:inbox,list:reply` | `list_reply.ts` |
 | `aim:inbox,list:pr` | `list_pr.ts` |
 | `aim:inbox,list:issue` | `list_issue.ts` |
 | `aim:inbox,load:pr` | `load_pr.ts` |
@@ -24,6 +26,8 @@ message maps to the action file named after its last pattern pair.
 | `aim:web,on:inbox,sync:item` | `web_sync_item.ts` |
 | `aim:web,on:inbox,list:item` | `web_list_item.ts` |
 | `aim:web,on:inbox,dismiss:item` | `web_dismiss_item.ts` |
+| `aim:web,on:inbox,undo:item` | `web_undo_item.ts` |
+| `aim:web,on:inbox,list:reply` | `web_list_reply.ts` |
 | `aim:web,on:inbox,approve:item` | `web_approve_item.ts` |
 | `aim:web,on:inbox,merge:item` | `web_merge_item.ts` |
 | `aim:web,on:inbox,comment:item` | `web_comment_item.ts` |
@@ -42,6 +46,8 @@ flowchart LR
   srv --> sync_item["aim:inbox,sync:item<br>sync_item.ts"]
   srv --> list_item["aim:inbox,list:item<br>list_item.ts"]
   srv --> dismiss_item["aim:inbox,dismiss:item<br>dismiss_item.ts"]
+  srv --> undo_item["aim:inbox,undo:item<br>undo_item.ts"]
+  srv --> list_reply["aim:inbox,list:reply<br>list_reply.ts"]
   srv --> list_pr["aim:inbox,list:pr<br>list_pr.ts"]
   srv --> list_issue["aim:inbox,list:issue<br>list_issue.ts"]
   srv --> load_pr["aim:inbox,load:pr<br>load_pr.ts"]
@@ -54,6 +60,8 @@ flowchart LR
   srv --> web_sync_item["aim:web,on:inbox,sync:item<br>web_sync_item.ts"]
   srv --> web_list_item["aim:web,on:inbox,list:item<br>web_list_item.ts"]
   srv --> web_dismiss_item["aim:web,on:inbox,dismiss:item<br>web_dismiss_item.ts"]
+  srv --> web_undo_item["aim:web,on:inbox,undo:item<br>web_undo_item.ts"]
+  srv --> web_list_reply["aim:web,on:inbox,list:reply<br>web_list_reply.ts"]
   srv --> web_approve_item["aim:web,on:inbox,approve:item<br>web_approve_item.ts"]
   srv --> web_merge_item["aim:web,on:inbox,merge:item<br>web_merge_item.ts"]
   srv --> web_comment_item["aim:web,on:inbox,comment:item<br>web_comment_item.ts"]
