@@ -99,6 +99,13 @@ async function listIssues() {
   return (r && r.ok && r.issues) || []
 }
 
+// PR detail view (03-pr-item.png): the single-PR load, carrying body/diff
+// stats/mergeability that list:pr's/list:item's rows don't.
+async function loadPr(repo_id, pr_id) {
+  const r = await bus.post({ aim: 'web', on: 'inbox', load: 'pr', repo_id, pr_id })
+  return r && r.ok ? r.pr : null
+}
+
 // Item intents (SPEC §13.2) - each translates to a forge call behind the
 // gateway; the browser only ever posts the app-nouned aim:web,on:inbox,*.
 
@@ -137,6 +144,7 @@ export {
   syncNow,
   listPulls,
   listIssues,
+  loadPr,
   approveItem,
   mergeItem,
   commentItem,

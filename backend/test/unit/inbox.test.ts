@@ -176,6 +176,40 @@ describe('inbox', () => {
   })
 
 
+  // Detail view (03-pr-item.png): the single-PR load, carrying body/diff
+  // stats/mergeability that list:pr's response doesn't - works for both a
+  // WorkItem-backed row (subject_id) and a raw browse row (same field).
+
+  test('load-pr-returns-detail-fields-not-carried-by-list', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,load:pr', { repo_id: 'r1', pr_id: 'p1', forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.pr.title).equal('Fix thing')
+    expect(res.pr.body).equal('Fixes the thing.')
+    expect(res.pr.head_ref).equal('fix-thing')
+    expect(res.pr.base_ref).equal('main')
+    expect(res.pr.additions).equal(12)
+    expect(res.pr.deletions).equal(3)
+    expect(res.pr.changed_files).equal(2)
+    expect(res.pr.mergeable).true()
+    expect(res.pr.mergeable_state).equal('clean')
+
+    await seneca.close()
+  })
+
+
+  test('load-pr-unknown-id-reports-not-found', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,load:pr', { repo_id: 'r1', pr_id: 'does-not-exist', forge: 'mem' })
+    expect(res.ok).false()
+    expect(res.why).equal('not-found')
+
+    await seneca.close()
+  })
+
+
   // More item kinds (SPEC §12): pr.inbound and pr.stale, both derived from
   // the same list:pr data as pr.review_requested - see ./detect.ts.
 

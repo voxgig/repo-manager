@@ -171,6 +171,16 @@
             "aim": "forge"
           },
           {
+            "load": "pr"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "forge"
+          },
+          {
             "open": "pr"
           }
         ]
@@ -332,6 +342,16 @@
           },
           {
             "list": "issue"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "load": "pr"
           }
         ]
       },
@@ -546,6 +566,20 @@
           },
           {
             "list": "issue"
+          }
+        ]
+      },
+      {
+        "file": "./web_load_pr",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "load": "pr"
           }
         ]
       }

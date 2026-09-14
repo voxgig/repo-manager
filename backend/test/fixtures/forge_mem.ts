@@ -10,6 +10,9 @@ module.exports = function forge_mem(this: any) {
       id: 'p1', repo_id: 'r1', title: 'Fix thing', state: 'open',
       url: 'https://example.com/r1/pull/1', author: 'contributor1',
       requested_reviewers: ['maintainer1'], updated_at: 1700000000000,
+      body: 'Fixes the thing.', head_ref: 'fix-thing', base_ref: 'main',
+      additions: 12, deletions: 3, changed_files: 2,
+      mergeable: true, mergeable_state: 'clean', draft: false, merged: false,
     },
     // r2's PRs are kept out of r1 so existing single-repo sync tests are
     // unaffected - only tests that explicitly sync r2 see pr.inbound/stale.
@@ -50,6 +53,12 @@ module.exports = function forge_mem(this: any) {
       ok: true,
       issues: Object.values(issues).filter((i: any) => i.repo_id === msg.repo_id && 'open' === i.state),
     }
+  })
+
+  seneca.message('aim:forge,load:pr,forge:mem', async function (msg: any) {
+    const pr = prs[msg.pr_id]
+    if (!pr) return { ok: false, why: 'not-found' }
+    return { ok: true, pr }
   })
 
   seneca.message('aim:forge,open:pr,forge:mem', async function (msg: any) {
