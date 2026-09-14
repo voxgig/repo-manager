@@ -37,6 +37,32 @@ async function run() {
 
   basic(seneca)
 
+  // Local dev convenience: env.local.js (gitignored, see .example) supplies
+  // defaults for GITHUB_TOKEN/REPO_MANAGER_* so they don't need re-exporting
+  // every session - process.env wins when a var IS set, same as any other
+  // default. Backfilling process.env (rather than switching every reader to
+  // seneca.context.SenecaEnv.var) keeps every existing process.env.X call
+  // site - here and in srv/inbox/web_*.ts - working unchanged.
+  seneca.use('env', {
+    var: (valid: any) => ({
+      GITHUB_TOKEN: valid.Skip(String),
+      REPO_MANAGER_REPOS: valid.Skip(String),
+      REPO_MANAGER_GITHUB_USER: valid.Skip(String),
+    }),
+    file: Path.join(__dirname, '..', '..', '..', 'env.local.js') + ';?',
+  })
+  // Plugin init runs during ready(), not use() - the env plugin has to have
+  // actually loaded before context.SenecaEnv exists to read, and before
+  // forge_github (registered next) reads process.env.GITHUB_TOKEN.
+  await seneca.ready()
+  // Object.assign would stringify an unset var to the literal "undefined" -
+  // only backfill the ones @seneca/env actually resolved a value for.
+  for (const [k, v] of Object.entries(seneca.context.SenecaEnv.var)) {
+    if (undefined !== v) {
+      process.env[k] = v as string
+    }
+  }
+
   seneca
     .use('gateway', {
       // THE BROWSER SURFACE. Only aim:web is reachable from a browser:
