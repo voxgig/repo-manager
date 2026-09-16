@@ -135,6 +135,7 @@ strong.vg-priority-later { color: var(--vg-muted); }
 .vg-kind-pr-open,
 .vg-kind-issue-open,
 .vg-kind-issue-untriaged { background: transparent; border-color: var(--vg-border); color: var(--vg-muted); }
+.vg-kind-campaign-bot_pr { background: #0274b4; color: #fff; }
 
 .vg-inbox-focus { flex: 0 0 320px; padding: 1.2rem; overflow-y: auto; }
 .vg-focused-label { color: var(--vg-muted); font-size: 0.75rem; letter-spacing: .05em; margin-bottom: 0.4rem; }

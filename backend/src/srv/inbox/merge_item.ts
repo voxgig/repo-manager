@@ -6,6 +6,8 @@ module.exports = function make_merge_item() {
     const found = await loadItemForge(seneca, msg.id)
     if (!found) return { ok: false, why: 'not-found' }
     const { item, repo_id, pr_id, forge } = found
+    // A campaign summary row has no real forge subject behind it.
+    if ('campaign' === forge) return { ok: false, why: 'not-supported' }
 
     const res = await seneca.post({ aim: 'forge', merge: 'pr', forge, repo_id, pr_id, merge_method: msg.merge_method })
     if (!res.ok) return { ok: false, why: res.why || 'forge-failed' }

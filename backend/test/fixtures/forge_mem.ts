@@ -74,6 +74,35 @@ module.exports = function forge_mem(this: any) {
       additions: 4, deletions: 4, changed_files: 1, commits: 1,
       mergeable: true, mergeable_state: 'clean', draft: false, merged: false,
     },
+
+    // r4/r5: test-only (like r3), the same renovate-bot bump opened in two
+    // repos - fingerprintTitle() normalises the version numbers away, so
+    // these group into one bot-pr campaign (SPEC §12.4). No requested
+    // reviewer, not maintainer1's own -> pr.inbound, same as any contributor
+    // PR - the campaign grouping runs over exactly that stream.
+    'p9': {
+      id: 'p9', repo_id: 'r4', title: 'Bump lodash from 4.17.20 to 4.17.21', state: 'open',
+      url: 'https://example.com/r4/pull/9', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 10 * 60000,
+    },
+    'p10': {
+      id: 'p10', repo_id: 'r5', title: 'Bump lodash from 4.17.19 to 4.17.20', state: 'open',
+      url: 'https://example.com/r5/pull/10', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 20 * 60000,
+    },
+
+    // Demo repos - same campaign shape, visible in the REPO_MANAGER_FORGE=mem
+    // demo instance.
+    'p11': {
+      id: 'p11', repo_id: 'voxgig-sdk/stripe-sdk', title: 'Bump typescript from 5.3.0 to 5.4.0', state: 'open',
+      url: 'https://example.com/voxgig-sdk/stripe-sdk/pull/11', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 5 * 60000,
+    },
+    'p12': {
+      id: 'p12', repo_id: 'tabnas/jsonic', title: 'Bump typescript from 5.2.0 to 5.3.0', state: 'open',
+      url: 'https://example.com/tabnas/jsonic/pull/12', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 40 * 60000,
+    },
   }
 
   const issues: any = {

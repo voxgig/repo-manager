@@ -41,6 +41,11 @@ const SYNC_R2 = { aim: 'inbox', sync: 'item', repo_ids: ['r2'], forge: 'mem', fo
 // (nobody's on it, no labels - untriaged only). See forge_mem.ts.
 const SYNC_R3 = { aim: 'inbox', sync: 'item', repo_ids: ['r3'], forge: 'mem', for_user: 'maintainer1' }
 
+// r4/r5: the same renovate-bot version bump (p9/p10), fingerprinting to the
+// same title once the version numbers are normalised away - a bot-pr
+// campaign (SPEC §12.4).
+const SYNC_R45 = { aim: 'inbox', sync: 'item', repo_ids: ['r4', 'r5'], forge: 'mem', for_user: 'maintainer1' }
+
 
 describe('inbox', () => {
 
@@ -491,7 +496,7 @@ describe('inbox', () => {
   })
 
 
-  test('undo-snooze-reopens-and-clears-snooze-until', async () => {
+  test('undo-snooze-reopens-the-item', async () => {
     const seneca = await makeSeneca()
     await seneca.post(SYNC)
     const id = (await seneca.post('aim:inbox,list:item')).items[0].id
@@ -500,7 +505,9 @@ describe('inbox', () => {
     const undone = await seneca.post('aim:inbox,undo:item', { id, kind: 'snooze' })
     expect(undone.ok).true()
     expect(undone.item.state).equal('open')
-    expect(undone.item.snooze_until).undefined()
+
+    const reloaded = (await seneca.post('aim:inbox,list:item')).items[0]
+    expect(reloaded.state).equal('open')
 
     await seneca.close()
   })
@@ -596,6 +603,94 @@ describe('inbox', () => {
     await seneca.post('aim:inbox,list:reply')
     const again = await seneca.post('aim:inbox,list:reply')
     expect(again.replies.length).equal(5)
+
+    await seneca.close()
+  })
+
+
+  // Campaigns, stub depth (SPEC §12.4): grouping computed and displayed,
+  // no fan-out action yet. p9 (r4) and p10 (r5) are the same renovate-bot
+  // version bump - same fingerprint+author, across 2+ repos.
+
+  test('sync-groups-a-bot-pr-campaign-and-hides-its-members', async () => {
+    const seneca = await makeSeneca()
+
+    const synced = await seneca.post(SYNC_R45)
+    expect(synced.ok).true()
+    // p9's pr.inbound item, p10's pr.inbound item, plus the one campaign
+    // item grouping them.
+    expect(synced.created).equal(3)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    const campaign = listed.items.find((it: any) => 'campaign.bot_pr' === it.kind)
+    expect(campaign).exist()
+    expect(campaign.source).equal('campaign')
+    expect(campaign.payload.member_count).equal(2)
+    expect(campaign.priority).equal('later')
+
+    // The members themselves no longer show up in the default list -
+    // just the one campaign row standing in for both.
+    const memberRows = listed.items.filter((it: any) => 'pr.inbound' === it.kind && ['p9', 'p10'].includes(it.subject_id))
+    expect(memberRows.length).equal(0)
+    expect(listed.items.length).equal(1)
+
+    await seneca.close()
+  })
+
+
+  test('campaign-releases-its-remaining-member-once-the-group-drops-below-two', async () => {
+    const seneca = await makeSeneca()
+
+    await seneca.post(SYNC_R45)
+    expect((await seneca.post('aim:inbox,list:item')).items.length).equal(1)
+
+    // p10 merges (drops out of r5's open PRs) - only p9 is left, below the
+    // 2-repo grouping threshold, so the campaign auto-resolves.
+    await seneca.post('aim:forge,merge:pr,forge:mem', { pr_id: 'p10' })
+    const resynced = await seneca.post(SYNC_R45)
+    expect(resynced.ok).true()
+
+    const after = await seneca.post('aim:inbox,list:item')
+    expect(after.items.length).equal(1)
+    expect(after.items[0].kind).equal('pr.inbound')
+    expect(after.items[0].subject_id).equal('p9')
+    expect(after.items[0].grouped_into).null()
+
+    await seneca.close()
+  })
+
+
+  test('campaign-item-does-not-support-comment-label-or-close', async () => {
+    const seneca = await makeSeneca()
+
+    await seneca.post(SYNC_R45)
+    const campaignId = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const commented = await seneca.post('aim:inbox,comment:item', { id: campaignId, body: 'hi' })
+    expect(commented.ok).false()
+    expect(commented.why).equal('not-supported')
+
+    const labeled = await seneca.post('aim:inbox,label:item', { id: campaignId, labels: ['x'] })
+    expect(labeled.ok).false()
+    expect(labeled.why).equal('not-supported')
+
+    const closed = await seneca.post('aim:inbox,close:item', { id: campaignId, reason: 'because' })
+    expect(closed.ok).false()
+    expect(closed.why).equal('not-supported')
+
+    await seneca.close()
+  })
+
+
+  test('campaign-item-can-still-be-dismissed', async () => {
+    const seneca = await makeSeneca()
+
+    await seneca.post(SYNC_R45)
+    const campaignId = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const dismissed = await seneca.post('aim:inbox,dismiss:item', { id: campaignId })
+    expect(dismissed.ok).true()
+    expect(dismissed.item.state).equal('done')
 
     await seneca.close()
   })

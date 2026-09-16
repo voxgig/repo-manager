@@ -6,6 +6,8 @@ module.exports = function make_label_item() {
     const found = await loadItemForge(seneca, msg.id)
     if (!found) return { ok: false, why: 'not-found' }
     const { item, repo_id, pr_id, forge } = found
+    // A campaign summary row has no real forge subject behind it.
+    if ('campaign' === forge) return { ok: false, why: 'not-supported' }
 
     const res = await seneca.post({ aim: 'forge', label: 'issue', forge, repo_id, issue_id: pr_id, labels: msg.labels })
     if (!res.ok) return { ok: false, why: res.why || 'forge-failed' }

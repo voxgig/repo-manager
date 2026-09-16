@@ -1,9 +1,9 @@
 // The inbox: Stage 1's one real view (SPEC.REPO-MANAGER.md §12,
 // MOCKUPS.md flow 1). A list + a focus detail panel, driven by the SPEC
 // §13.2 key bindings this stage has forge support for
-// (j/k/o/e/a/m/c/l/C/s/u), local search (§13.3), Snoozed/Aging views
-// alongside Inbox, and a Cmd-K command bar (SPEC §13.4) reaching the same
-// set. No campaigns, no multi-select, no `g`-prefixed view-switch chords -
+// (j/k/o/e/a/m/c/l/C/s/u), local search (§13.3), Snoozed/Aging/Campaigns
+// views alongside Inbox, and a Cmd-K command bar (SPEC §13.4) reaching the
+// same set. No multi-select, no `g`-prefixed view-switch chords -
 // deliberately shallow.
 
 import * as Api from '../api.js'
@@ -17,6 +17,7 @@ const KIND_LABEL = {
   'issue.assigned': 'assigned',
   'issue.mentioned': 'mentioned',
   'issue.untriaged': 'untriaged',
+  'campaign.bot_pr': 'campaign',
 }
 
 // The known fleet (docs/inventory.md) - static until org modeling (Stage 4
@@ -26,7 +27,7 @@ const FLEET_ORGS = ['senecajs', 'tabnas', 'voxgig', 'voxgig-sdk']
 // Sidebar sections with no backing data/message yet at Stage 1 - shown
 // inert (no counts, not clickable) rather than omitted, so the shape of
 // the eventual nav is visible without faking numbers behind it.
-const INERT_SECTIONS = ['Drift', 'Campaigns', 'Runs']
+const INERT_SECTIONS = ['Drift', 'Runs']
 
 // Real nav views. inbox/snoozed are the derived queue (rpm/item behind
 // every row, full item-intent set available); pulls/issues are raw fleet
@@ -37,6 +38,7 @@ const VIEWS = {
   inbox: { title: 'Inbox', itemActions: true },
   snoozed: { title: 'Snoozed', itemActions: true },
   aging: { title: 'Aging', itemActions: true },
+  campaigns: { title: 'Campaigns', itemActions: true },
   pulls: { title: 'Pull requests', itemActions: false },
   issues: { title: 'Issues', itemActions: false },
 }
@@ -60,6 +62,13 @@ function agingItems(items) {
   return items
     .filter((it) => AGING_KINDS.includes(it.kind) && !it.first_response_at)
     .sort((a, b) => (a.first_seen || 0) - (b.first_seen || 0))
+}
+
+// Campaigns (SPEC §12.4): grouped bot-PR rows, source:'campaign' - also a
+// filter over the same open-item set (sync_item.ts's syncCampaigns already
+// pulled the real members out of it), not a separate fetch.
+function campaignItems(items) {
+  return items.filter((it) => 'campaign' === it.source)
 }
 
 // Composer kinds. Text kinds (title, multiline) render an input/textarea -
@@ -168,6 +177,9 @@ class VgInbox extends HTMLElement {
       // differently - not a separate backend message.
       this.items = agingItems(await Api.listInbox('open'))
     }
+    else if ('campaigns' === this.view) {
+      this.items = campaignItems(await Api.listInbox('open'))
+    }
     else {
       this.items = await Api.listInbox(this.viewState())
       // now < soon < later, then most recently updated first within a tier.
@@ -190,7 +202,8 @@ class VgInbox extends HTMLElement {
     ])
     this.counts = {
       inbox: inboxItems.length, snoozed: snoozedItems.length,
-      aging: agingItems(inboxItems).length, pulls: pulls.length, issues: issues.length,
+      aging: agingItems(inboxItems).length, campaigns: campaignItems(inboxItems).length,
+      pulls: pulls.length, issues: issues.length,
     }
     this.render()
   }
@@ -267,6 +280,7 @@ class VgInbox extends HTMLElement {
       { id: 'view-inbox', label: 'view: inbox', run: () => this.switchView('inbox') },
       { id: 'view-snoozed', label: 'view: snoozed', run: () => this.switchView('snoozed') },
       { id: 'view-aging', label: 'view: aging', run: () => this.switchView('aging') },
+      { id: 'view-campaigns', label: 'view: campaigns', run: () => this.switchView('campaigns') },
       { id: 'view-pulls', label: 'view: pull requests', run: () => this.switchView('pulls') },
       { id: 'open', label: 'open detail (Enter)', run: () => this.openDetail() },
       { id: 'open-external', label: 'open on forge (o)', run: () => this.openExternal() },
