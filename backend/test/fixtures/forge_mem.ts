@@ -162,6 +162,22 @@ module.exports = function forge_mem(this: any) {
     'c1': { id: 'c1', repo_id: 'r1', pr_id: 'p1', name: 'ci', status: 'success' },
   }
 
+  // Policy checks (SPEC §14.1). Every pre-existing test repo (r1-r6) is
+  // made CI-compliant here so the drift check - which runs over every
+  // repo_id any sync call touches - can't change the created/resolved
+  // counts the many non-drift sync tests already assert. r7 is the one
+  // dedicated drifted repo (no files at all), used only by drift-specific
+  // tests.
+  const CI_COMPLIANT = { '.github/workflows/ci.yml': 'name: CI\non:\n  push:\njobs:\n  test:\n    strategy:\n      matrix:\n        node-version: [22, 24]\n' }
+  const files: any = {
+    'r1': { ...CI_COMPLIANT, 'package.json': '{"name": "r1", "scripts": {"test": "vitest run"}}' },
+    'r2': CI_COMPLIANT,
+    'r3': CI_COMPLIANT,
+    'r4': CI_COMPLIANT,
+    'r5': CI_COMPLIANT,
+    'r6': CI_COMPLIANT,
+  }
+
   seneca.message('aim:forge,list:pr,forge:mem', async function (msg: any) {
     // Matches the real GitHub API: list$ returns open PRs only.
     return {
@@ -244,6 +260,12 @@ module.exports = function forge_mem(this: any) {
 
   seneca.message('aim:forge,get:info,forge:mem', async function () {
     return { ok: true, capabilities: ['list:pr', 'open:pr', 'comment:issue', 'label:issue', 'assign:issue', 'close:issue', 'approve:pr', 'request:review', 'merge:pr', 'dismiss:alert', 'list:alert', 'list:check'] }
+  })
+
+  seneca.message('aim:forge,get:file,forge:mem', async function (msg: any) {
+    const repoFiles = files[msg.repo_id]
+    const content = repoFiles && repoFiles[msg.path]
+    return undefined === content ? { ok: true, exists: false } : { ok: true, exists: true, content }
   })
 
   return { name: 'forge_mem' }

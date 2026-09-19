@@ -18,6 +18,7 @@ const KIND_LABEL = {
   'issue.mentioned': 'mentioned',
   'issue.untriaged': 'untriaged',
   'campaign.bot_pr': 'campaign',
+  'repo.drift': 'drift',
 }
 
 // The known fleet (docs/inventory.md) - static until org modeling (Stage 4
@@ -27,13 +28,14 @@ const FLEET_ORGS = ['senecajs', 'tabnas', 'voxgig', 'voxgig-sdk']
 // Sidebar sections with no backing data/message yet at Stage 1 - shown
 // inert (no counts, not clickable) rather than omitted, so the shape of
 // the eventual nav is visible without faking numbers behind it.
-const INERT_SECTIONS = ['Drift', 'Runs']
+const INERT_SECTIONS = ['Runs']
 
 // Real nav views. inbox/snoozed are the derived queue (rpm/item behind
-// every row, full item-intent set available); pulls/issues are raw fleet
-// browses (SPEC's "Pull requests"/"Issues" - every open PR or issue, no
-// rpm/item, read-only: open on the forge and search, nothing else, since
-// there's no item to act on).
+// every row, full item-intent set available); pulls/issues/drift are raw
+// fleet browses (SPEC's "Pull requests"/"Issues"/§14.3's drift matrix -
+// read-only: open on the forge and search, nothing else, since there's no
+// item to act on - drift's cells aren't rpm/item rows either, even though
+// a non-compliant one has a matching repo.drift item in the real inbox).
 const VIEWS = {
   inbox: { title: 'Inbox', itemActions: true },
   snoozed: { title: 'Snoozed', itemActions: true },
@@ -41,6 +43,7 @@ const VIEWS = {
   campaigns: { title: 'Campaigns', itemActions: true },
   pulls: { title: 'Pull requests', itemActions: false },
   issues: { title: 'Issues', itemActions: false },
+  drift: { title: 'Drift matrix', itemActions: false },
 }
 
 // Views with no priority to rank by - load() calls these instead of
@@ -132,6 +135,11 @@ class VgInbox extends HTMLElement {
     // Saved replies (SPEC §12.4) - fetched once, lazily, the first time a
     // comment/close composer opens.
     this.replies = null
+    // Drift matrix (SPEC §14.3) - a grid, not a list, so it gets its own
+    // cell-focus coordinate instead of reusing focusIndex/visibleItems().
+    this.driftPolicies = []
+    this.driftCells = []
+    this.driftFocus = { row: 0, col: 0 }
     // Sidebar badge counts, one per real view - kept separate from
     // this.items (the ACTIVE view's rows) so every nav entry can show a
     // real count, not just the one currently open.
@@ -180,6 +188,13 @@ class VgInbox extends HTMLElement {
     else if ('campaigns' === this.view) {
       this.items = campaignItems(await Api.listInbox('open'))
     }
+    else if ('drift' === this.view) {
+      const res = await Api.listDrift()
+      this.driftPolicies = res.policies
+      this.driftCells = res.cells
+      this.driftFocus = { row: 0, col: 0 }
+      this.items = []
+    }
     else {
       this.items = await Api.listInbox(this.viewState())
       // now < soon < later, then most recently updated first within a tier.
@@ -187,9 +202,27 @@ class VgInbox extends HTMLElement {
       this.items.sort((a, b) =>
         (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) || (b.updated_at || 0) - (a.updated_at || 0))
     }
-    this.counts[this.view] = this.items.length
+    this.counts[this.view] = 'drift' === this.view
+      ? this.driftCells.filter((c) => !c.compliant).length
+      : this.items.length
     this.clampFocus()
     this.render()
+  }
+
+  // Unique repo ids in the drift grid, in the order the backend returned
+  // them (REPO_MANAGER_REPOS order) - the grid's rows.
+  driftRepoIds() {
+    const seen = []
+    for (const cell of this.driftCells) {
+      if (!seen.includes(cell.repo)) {
+        seen.push(cell.repo)
+      }
+    }
+    return seen
+  }
+
+  driftCellAt(repo, policyId) {
+    return this.driftCells.find((c) => c.repo === repo && c.policy_id === policyId)
   }
 
   // Refetches every real view's count for the sidebar badges - separate
@@ -203,6 +236,10 @@ class VgInbox extends HTMLElement {
     this.counts = {
       inbox: inboxItems.length, snoozed: snoozedItems.length,
       aging: agingItems(inboxItems).length, campaigns: campaignItems(inboxItems).length,
+      // The badge shows drifted-cell count, same signal as the repo.drift
+      // items already in inboxItems - no separate list:drift round-trip
+      // just for a sidebar number.
+      drift: inboxItems.filter((it) => 'repo.drift' === it.kind).length,
       pulls: pulls.length, issues: issues.length,
     }
     this.render()
@@ -282,6 +319,7 @@ class VgInbox extends HTMLElement {
       { id: 'view-aging', label: 'view: aging', run: () => this.switchView('aging') },
       { id: 'view-campaigns', label: 'view: campaigns', run: () => this.switchView('campaigns') },
       { id: 'view-pulls', label: 'view: pull requests', run: () => this.switchView('pulls') },
+      { id: 'view-drift', label: 'view: drift matrix', run: () => this.switchView('drift') },
       { id: 'open', label: 'open detail (Enter)', run: () => this.openDetail() },
       { id: 'open-external', label: 'open on forge (o)', run: () => this.openExternal() },
       { id: 'done', label: 'done (e)', run: () => this.dismissFocused() },
@@ -328,6 +366,11 @@ class VgInbox extends HTMLElement {
       return
     }
 
+    if ('drift' === this.view) {
+      this.onDriftKeydown(ev)
+      return
+    }
+
     const action = KEY_ACTIONS[ev.key]
     if (action) {
       if (action.prevent) {
@@ -352,6 +395,27 @@ class VgInbox extends HTMLElement {
 
   focusSearch() {
     this.wantSearchFocus = true
+    this.render()
+  }
+
+  // Grid nav for the drift matrix (mockup's own "j k h l move cell") -
+  // separate from moveFocus() since a cell is a (row, col) pair, not an
+  // index into visibleItems().
+  onDriftKeydown(ev) {
+    const rows = this.driftRepoIds().length
+    const cols = this.driftPolicies.length
+    if (!rows || !cols) {
+      return
+    }
+    const moves = { j: [1, 0], k: [-1, 0], l: [0, 1], h: [0, -1] }
+    const d = moves[ev.key]
+    if (!d) {
+      return
+    }
+    this.driftFocus = {
+      row: Math.max(0, Math.min(rows - 1, this.driftFocus.row + d[0])),
+      col: Math.max(0, Math.min(cols - 1, this.driftFocus.col + d[1])),
+    }
     this.render()
   }
 
@@ -701,12 +765,37 @@ class VgInbox extends HTMLElement {
       this.innerHTML = this.renderDetailPage()
       this.wireDetailPage()
     }
+    else if ('drift' === this.view) {
+      this.innerHTML = this.renderDriftPage()
+      this.wireDriftPage()
+    }
     else {
       this.innerHTML = this.renderListPage()
       this.wireListPage(hadSearchFocus)
     }
 
     this.wireOverlays()
+  }
+
+  // Shared by the list and drift pages (the detail page runs full-width,
+  // no nav) - same view-switch links, same inert placeholders.
+  renderNav() {
+    return `
+      <nav class="vg-inbox-nav">
+        ${Object.keys(VIEWS).map((v) => `
+          <div class="vg-nav-item${v === this.view ? ' vg-nav-active' : ''}" data-view="${v}">
+            ${esc(VIEWS[v].title)} ${undefined !== this.counts[v] ? `<span class="vg-nav-count">${this.counts[v]}</span>` : ''}
+          </div>`).join('')}
+        ${INERT_SECTIONS.map((s) => `<div class="vg-nav-item vg-nav-inert">${esc(s)}</div>`).join('')}
+        <div class="vg-nav-group-title">Fleet</div>
+        ${FLEET_ORGS.map((o) => `<div class="vg-nav-item vg-nav-inert">${esc(o)}</div>`).join('')}
+      </nav>`
+  }
+
+  wireNav() {
+    for (const nav of this.querySelectorAll('.vg-nav-item[data-view]')) {
+      nav.onclick = () => this.switchView(nav.dataset.view)
+    }
   }
 
   renderListPage() {
@@ -727,15 +816,7 @@ class VgInbox extends HTMLElement {
           <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
         </header>
         <div class="vg-inbox-shell">
-          <nav class="vg-inbox-nav">
-            ${Object.keys(VIEWS).map((v) => `
-              <div class="vg-nav-item${v === this.view ? ' vg-nav-active' : ''}" data-view="${v}">
-                ${esc(VIEWS[v].title)} ${undefined !== this.counts[v] ? `<span class="vg-nav-count">${this.counts[v]}</span>` : ''}
-              </div>`).join('')}
-            ${INERT_SECTIONS.map((s) => `<div class="vg-nav-item vg-nav-inert">${esc(s)}</div>`).join('')}
-            <div class="vg-nav-group-title">Fleet</div>
-            ${FLEET_ORGS.map((o) => `<div class="vg-nav-item vg-nav-inert">${esc(o)}</div>`).join('')}
-          </nav>
+          ${this.renderNav()}
           <div class="vg-inbox-main">
             <div class="vg-inbox-body">
               <div class="vg-inbox-list">
@@ -786,9 +867,7 @@ class VgInbox extends HTMLElement {
       }
     }
 
-    for (const nav of this.querySelectorAll('.vg-nav-item[data-view]')) {
-      nav.onclick = () => this.switchView(nav.dataset.view)
-    }
+    this.wireNav()
 
     const cmdkBtn = this.querySelector('#vg-cmdk-open')
     if (cmdkBtn) {
@@ -1143,6 +1222,95 @@ class VgInbox extends HTMLElement {
           <div><kbd>C</kbd> close with reason</div>
           <div><kbd>s</kbd> snooze</div>` : ''}
       </div>`
+  }
+
+  // The drift matrix (06-drift-matrix.png, SPEC §14.3): repos × policies,
+  // read-only. Deliberately stops short of the mockup's "plan preview /
+  // apply" side - that's the bulk-apply pipeline, Stage 3 (§19.6), and
+  // nothing here has one yet (check_policy.ts is check-only).
+  renderDriftPage() {
+    const repoIds = this.driftRepoIds()
+    const policies = this.driftPolicies
+    const focusedRepo = repoIds[this.driftFocus.row]
+    const focusedPolicy = policies[this.driftFocus.col]
+    const focusedCell = focusedRepo && focusedPolicy && this.driftCellAt(focusedRepo, focusedPolicy.id)
+
+    return `
+      <div class="vg-inbox">
+        <header class="vg-inbox-topbar">
+          <span class="vg-inbox-brand">🔴 repo-manager</span>
+          <span class="vg-inbox-crumb">/ ${esc(VIEWS.drift.title)}</span>
+          <div class="vg-spacer"></div>
+          ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
+          <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
+          <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
+          <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
+        </header>
+        <div class="vg-inbox-shell">
+          ${this.renderNav()}
+          <div class="vg-inbox-main">
+            <div class="vg-inbox-body">
+              <div class="vg-drift-grid-wrap">
+                ${repoIds.length
+                  ? `<table class="vg-drift-grid">
+                      <thead><tr><th>Repo</th>${policies.map((p) => `<th>${esc(p.id)}</th>`).join('')}</tr></thead>
+                      <tbody>
+                        ${repoIds.map((repo, ri) => `
+                          <tr>
+                            <td class="vg-drift-repo">${esc(repo)}</td>
+                            ${policies.map((p, ci) => {
+                              const cell = this.driftCellAt(repo, p.id)
+                              const cls = !cell ? '' : cell.compliant ? ' vg-drift-ok' : ' vg-drift-bad'
+                              const focus = ri === this.driftFocus.row && ci === this.driftFocus.col ? ' vg-focused' : ''
+                              const label = !cell ? '—' : cell.compliant ? '✓' : '✕ drift'
+                              return `<td class="vg-drift-cell${cls}${focus}" data-row="${ri}" data-col="${ci}">${label}</td>`
+                            }).join('')}
+                          </tr>`).join('')}
+                      </tbody>
+                    </table>`
+                  : '<div class="vg-empty">no repos configured</div>'}
+                ${repoIds.length && this.driftCells.some((c) => !c.compliant)
+                  ? '<div class="vg-inbox-footnote">every drifted cell is also a work item in the inbox</div>'
+                  : ''}
+              </div>
+              <aside class="vg-inbox-focus">
+                ${focusedCell ? this.renderDriftFocus(focusedRepo, focusedPolicy, focusedCell) : ''}
+              </aside>
+            </div>
+            <footer class="vg-inbox-keys">
+              <span><kbd>j</kbd><kbd>k</kbd><kbd>h</kbd><kbd>l</kbd> move cell</span>
+              <span><kbd>⌘K</kbd> commands</span>
+            </footer>
+          </div>
+        </div>
+        ${this.paletteOpen ? this.renderPalette() : ''}
+      </div>`
+  }
+
+  renderDriftFocus(repo, policy, cell) {
+    return `
+      <div class="vg-focused-label">FOCUSED CELL</div>
+      <h3 class="vg-focus-title">${esc(repo)} × ${esc(policy.id)}</h3>
+      <div class="vg-muted">${esc(policy.description)}</div>
+      <div class="vg-drift-status${cell.compliant ? '' : ' vg-drift-bad'}">
+        ${cell.compliant ? '✓ compliant' : '✕ ' + esc(cell.why || 'drift')}
+      </div>`
+  }
+
+  wireDriftPage() {
+    this.wireNav()
+
+    const cmdkBtn = this.querySelector('#vg-cmdk-open')
+    if (cmdkBtn) {
+      cmdkBtn.onclick = () => this.togglePalette(true)
+    }
+
+    for (const cell of this.querySelectorAll('.vg-drift-cell')) {
+      cell.onclick = () => {
+        this.driftFocus = { row: Number(cell.dataset.row), col: Number(cell.dataset.col) }
+        this.render()
+      }
+    }
   }
 }
 

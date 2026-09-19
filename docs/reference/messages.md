@@ -29,6 +29,7 @@ flowchart LR
 | `aim:inbox,list:reply` | `src/srv/inbox/list_reply.ts` |
 | `aim:inbox,list:pr` | `src/srv/inbox/list_pr.ts` |
 | `aim:inbox,list:issue` | `src/srv/inbox/list_issue.ts` |
+| `aim:inbox,list:drift` | `src/srv/inbox/list_drift.ts` |
 | `aim:inbox,load:pr` | `src/srv/inbox/load_pr.ts` |
 | `aim:inbox,approve:item` | `src/srv/inbox/approve_item.ts` |
 | `aim:inbox,merge:item` | `src/srv/inbox/merge_item.ts` |
@@ -49,4 +50,5 @@ flowchart LR
 | `aim:web,on:inbox,snooze:item` | `src/srv/inbox/web_snooze_item.ts` |
 | `aim:web,on:inbox,list:pr` | `src/srv/inbox/web_list_pr.ts` |
 | `aim:web,on:inbox,list:issue` | `src/srv/inbox/web_list_issue.ts` |
+| `aim:web,on:inbox,list:drift` | `src/srv/inbox/web_list_drift.ts` |
 | `aim:web,on:inbox,load:pr` | `src/srv/inbox/web_load_pr.ts` |

@@ -46,6 +46,11 @@ const SYNC_R3 = { aim: 'inbox', sync: 'item', repo_ids: ['r3'], forge: 'mem', fo
 // campaign (SPEC §12.4).
 const SYNC_R45 = { aim: 'inbox', sync: 'item', repo_ids: ['r4', 'r5'], forge: 'mem', for_user: 'maintainer1' }
 
+// r7 has no files at all - fails standard-ci's file.exists check, so it's
+// the one dedicated drifted repo (r1-r6 are all made CI-compliant so the
+// drift check can't perturb their unrelated exact-count assertions above).
+const SYNC_R7 = { aim: 'inbox', sync: 'item', repo_ids: ['r7'], forge: 'mem', for_user: 'maintainer1' }
+
 
 describe('inbox', () => {
 
@@ -691,6 +696,112 @@ describe('inbox', () => {
     const dismissed = await seneca.post('aim:inbox,dismiss:item', { id: campaignId })
     expect(dismissed.ok).true()
     expect(dismissed.item.state).equal('done')
+
+    await seneca.close()
+  })
+
+
+  // Policy checks (SPEC §14.1): repo.drift items, derived from the seeded
+  // standard-ci policy via aim:forge,get:file - see check_policy.ts.
+
+  test('sync-creates-a-drift-item-for-a-noncompliant-repo', async () => {
+    const seneca = await makeSeneca()
+
+    const synced = await seneca.post(SYNC_R7)
+    expect(synced.ok).true()
+    expect(synced.created).equal(1)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    expect(listed.items.length).equal(1)
+    expect(listed.items[0].kind).equal('repo.drift')
+    expect(listed.items[0].subject_id).equal('standard-ci')
+    expect(listed.items[0].priority).equal('soon')
+    expect(listed.items[0].title).contain('.github/workflows/ci.yml not found')
+
+    await seneca.close()
+  })
+
+
+  test('sync-does-not-create-a-drift-item-for-a-compliant-repo', async () => {
+    const seneca = await makeSeneca()
+
+    // r1 is CI-compliant (see forge_mem.ts) - SYNC's own review-request
+    // item is still the only item, same count as before drift existed.
+    const synced = await seneca.post(SYNC)
+    expect(synced.created).equal(1)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    expect(listed.items.some((it: any) => 'repo.drift' === it.kind)).false()
+
+    await seneca.close()
+  })
+
+
+  test('drift-item-does-not-support-comment-label-close-approve-or-merge', async () => {
+    const seneca = await makeSeneca()
+
+    await seneca.post(SYNC_R7)
+    const driftId = (await seneca.post('aim:inbox,list:item')).items[0].id
+
+    const commented = await seneca.post('aim:inbox,comment:item', { id: driftId, body: 'hi' })
+    expect(commented.ok).false()
+    expect(commented.why).equal('not-supported')
+
+    const labeled = await seneca.post('aim:inbox,label:item', { id: driftId, labels: ['x'] })
+    expect(labeled.ok).false()
+    expect(labeled.why).equal('not-supported')
+
+    const closed = await seneca.post('aim:inbox,close:item', { id: driftId, reason: 'because' })
+    expect(closed.ok).false()
+    expect(closed.why).equal('not-supported')
+
+    const approved = await seneca.post('aim:inbox,approve:item', { id: driftId })
+    expect(approved.ok).false()
+    expect(approved.why).equal('not-supported')
+
+    const merged = await seneca.post('aim:inbox,merge:item', { id: driftId })
+    expect(merged.ok).false()
+    expect(merged.why).equal('not-supported')
+
+    await seneca.close()
+  })
+
+
+  test('drift-check-runs-independently-per-repo-in-a-multi-repo-sync', async () => {
+    const seneca = await makeSeneca()
+
+    // r1 (compliant) and r7 (not) in the same sync - only r7 should drift.
+    const synced = await seneca.post({ aim: 'inbox', sync: 'item', repo_ids: ['r1', 'r7'], forge: 'mem', for_user: 'maintainer1' })
+    expect(synced.ok).true()
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    const drifted = listed.items.filter((it: any) => 'repo.drift' === it.kind)
+    expect(drifted.length).equal(1)
+    expect(drifted[0].repo).equal('r7')
+
+    await seneca.close()
+  })
+
+
+  // The drift matrix (SPEC §14.3): every (repo, policy) cell, not just the
+  // non-compliant ones - a browse endpoint, no rpm/item lookup.
+
+  test('list-drift-returns-every-repo-policy-cell-compliant-or-not', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['r1', 'r7'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.policies.length).equal(1)
+    expect(res.policies[0].id).equal('standard-ci')
+    expect(res.cells.length).equal(2)
+
+    const byRepo: any = {}
+    for (const cell of res.cells) byRepo[cell.repo] = cell
+
+    expect(byRepo['r1'].compliant).true()
+    expect(byRepo['r1'].why).undefined()
+    expect(byRepo['r7'].compliant).false()
+    expect(byRepo['r7'].why).contain('not found')
 
     await seneca.close()
   })

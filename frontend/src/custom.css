@@ -136,6 +136,7 @@ strong.vg-priority-later { color: var(--vg-muted); }
 .vg-kind-issue-open,
 .vg-kind-issue-untriaged { background: transparent; border-color: var(--vg-border); color: var(--vg-muted); }
 .vg-kind-campaign-bot_pr { background: #0274b4; color: #fff; }
+.vg-kind-repo-drift { background: #f8b833; color: #1a1a1a; }
 
 .vg-inbox-focus { flex: 0 0 320px; padding: 1.2rem; overflow-y: auto; }
 .vg-focused-label { color: var(--vg-muted); font-size: 0.75rem; letter-spacing: .05em; margin-bottom: 0.4rem; }
@@ -187,3 +188,20 @@ kbd { background: var(--vg-surface); border: 1px solid var(--vg-border); border-
   cursor: pointer; }
 .vg-detail-action:hover { color: var(--vg-primary); }
 .vg-detail-disclaimer { color: var(--vg-muted); font-size: 0.8rem; line-height: 1.4; }
+
+/* ---- drift matrix (06-drift-matrix.png, SPEC §14.3) ---- */
+
+.vg-drift-grid-wrap { flex: 1; overflow: auto; border-right: 1px solid var(--vg-border); }
+.vg-drift-grid { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.vg-drift-grid th, .vg-drift-grid td { padding: 0.6rem 1rem; text-align: left;
+  border-top: 1px solid var(--vg-border); white-space: nowrap; }
+.vg-drift-grid thead th { color: var(--vg-muted); font-weight: 600; border-top: none; }
+.vg-drift-repo { font-family: monospace; color: var(--vg-text); }
+.vg-drift-cell { cursor: pointer; color: var(--vg-muted); }
+.vg-drift-cell:hover { background: var(--vg-bg); }
+.vg-drift-cell.vg-focused { outline: 2px solid var(--vg-primary); outline-offset: -2px; }
+.vg-drift-cell.vg-drift-ok { color: var(--vg-success); }
+.vg-drift-cell.vg-drift-bad { color: #f8b833; font-weight: 600; }
+
+.vg-drift-status { margin: 0.8rem 0; font-weight: 600; }
+.vg-drift-status.vg-drift-bad { color: #f8b833; }

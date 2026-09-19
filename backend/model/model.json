@@ -298,6 +298,16 @@
       {
         "pat": [
           {
+            "aim": "forge"
+          },
+          {
+            "get": "file"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
             "aim": "inbox"
           },
           {
@@ -362,6 +372,16 @@
           },
           {
             "list": "issue"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "list": "drift"
           }
         ]
       },
@@ -614,6 +634,20 @@
           },
           {
             "list": "issue"
+          }
+        ]
+      },
+      {
+        "file": "./web_list_drift",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "list": "drift"
           }
         ]
       },

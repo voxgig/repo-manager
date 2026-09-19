@@ -9,6 +9,7 @@
 import * as crypto from 'crypto'
 
 const { PR_DETECTORS, ISSUE_DETECTORS, priorityFor, fingerprintTitle } = require('./detect')
+const { SEED_POLICIES, runPolicy } = require('./check_policy')
 
 // Same shape for both subject kinds: which aim:forge,list:* answers it,
 // which field of the response carries the list, which detectors run over it.
@@ -114,6 +115,14 @@ module.exports = function make_sync_item() {
     created += campaignCounts.created
     updated += campaignCounts.updated
 
+    // Policy checks (SPEC §14.1) - repo.drift items. Compliant repo/policy
+    // pairs are deliberately NOT added to `seen`: the generic auto-resolve
+    // sweep below removes any stale drift item for them, same as a merged
+    // PR's condition disappearing - no separate resolve logic needed here.
+    const driftCounts = await syncDrift(seneca, repo_ids, forge, seen)
+    created += driftCounts.created
+    updated += driftCounts.updated
+
     // Auto-resolve: open OR snoozed items in this sync's scope whose
     // condition wasn't seen this pass - the PR merged, closed, went
     // stale->fresh, or the review request was withdrawn. Snoozed items
@@ -133,6 +142,59 @@ module.exports = function make_sync_item() {
 
     return { ok: true, created, updated, resolved, seen: seen.size }
   }
+}
+
+
+// SPEC §14.1/§14.3: one repo.drift item per (repo, policy) that fails its
+// check - real WorkItem rows, same lifecycle as everything else, reusing
+// the caller's auto-resolve sweep for the "went compliant again" case
+// (see the call site's comment). No apply/bulk-write pipeline yet
+// (Stage 3, §19.6) - check only.
+async function syncDrift(seneca: any, repo_ids: string[], forge: string, seen: Set<string>) {
+  let created = 0
+  let updated = 0
+  const now = Date.now()
+
+  for (const repo_id of repo_ids) {
+    const org_id = repo_id.split('/')[0]
+
+    for (const policy of SEED_POLICIES) {
+      const result = await runPolicy(seneca, forge, repo_id, policy)
+      if (result.compliant) {
+        continue
+      }
+
+      seen.add([org_id, forge, 'repo.drift', repo_id, policy.id].join('|'))
+
+      const digest = crypto.createHash('sha256').update(result.why || '').digest('hex')
+      const existing = (await seneca.entity('rpm/item').list$({
+        org_id, source: forge, kind: 'repo.drift', repo: repo_id, subject_id: policy.id,
+      }))[0]
+
+      if (!existing) {
+        await seneca.entity('rpm/item').data$({
+          org_id, source: forge, repo: repo_id, kind: 'repo.drift', subject_id: policy.id,
+          title: `${policy.description} - ${result.why}`,
+          priority: priorityFor('repo.drift'), state: 'open',
+          first_seen: now, updated_at: now, digest, payload: { policy_id: policy.id, why: result.why },
+        }).save$()
+        created++
+      }
+      else if (existing.digest !== digest) {
+        existing.title = `${policy.description} - ${result.why}`
+        existing.updated_at = now
+        existing.digest = digest
+        existing.payload = { policy_id: policy.id, why: result.why }
+        if ('done' === existing.state) {
+          existing.state = 'open'
+        }
+        await existing.save$()
+        updated++
+      }
+    }
+  }
+
+  return { created, updated }
 }
 
 

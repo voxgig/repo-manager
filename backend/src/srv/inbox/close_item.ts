@@ -8,8 +8,9 @@ module.exports = function make_close_item() {
     const found = await loadItemForge(seneca, msg.id)
     if (!found) return { ok: false, why: 'not-found' }
     const { item, repo_id, pr_id, forge } = found
-    // A campaign summary row has no real forge subject behind it.
-    if ('campaign' === forge) return { ok: false, why: 'not-supported' }
+    // Only pr.*/issue.* kinds have a real pr/issue subject behind them -
+    // campaign.* (a summary row) and repo.drift (a policy, not an issue).
+    if (!/^(pr|issue)\./.test(item.kind)) return { ok: false, why: 'not-supported' }
 
     // SPEC §13.2: "Close with reason - always through a saved reply, never a
     // bare close." The reason always posts as a comment before closing -

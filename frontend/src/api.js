@@ -99,6 +99,13 @@ async function listIssues() {
   return (r && r.ok && r.issues) || []
 }
 
+// The drift matrix (SPEC §14.3): every (repo, policy) cell, not just the
+// non-compliant ones list:item already surfaces as work items.
+async function listDrift() {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'drift' })
+  return r && r.ok ? { policies: r.policies || [], cells: r.cells || [] } : { policies: [], cells: [] }
+}
+
 // PR detail view (03-pr-item.png): the single-PR load, carrying body/diff
 // stats/mergeability that list:pr's/list:item's rows don't.
 async function loadPr(repo_id, pr_id) {
@@ -156,6 +163,7 @@ export {
   syncNow,
   listPulls,
   listIssues,
+  listDrift,
   loadPr,
   approveItem,
   mergeItem,

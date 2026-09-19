@@ -33,6 +33,10 @@
   { pat: [{aim: forge}, {list: check}] }
   { pat: [{aim: forge}, {get: info}] }
 
+  # SPEC §14.1's file.exists/file.matches policy checks - single-file
+  # reads only, decoded to plain text regardless of forge wire encoding.
+  { pat: [{aim: forge}, {get: file}] }
+
 
   # ---- inbox — the one semantic intent for this stage --------------------
   # service is what translates it into forge messages.
@@ -58,6 +62,11 @@
   # the UI.
   { pat: [{aim: inbox}, {list: pr}] }
   { pat: [{aim: inbox}, {list: issue}] }
+
+  # The drift matrix (SPEC §14.3): every (repo, policy) cell, compliant or
+  # not - the browse counterpart to the repo.drift items sync_item.ts
+  # already derives. Read-only, no apply (Stage 3, §19.6).
+  { pat: [{aim: inbox}, {list: drift}] }
 
   # The detail view for either kind of row above (item-backed or raw
   # browse) - PR-only for now, see the loose-ends memory note.
@@ -87,6 +96,7 @@
   { pat: [{aim: web}, {on: inbox}, {snooze: item}], file: './web_snooze_item' }
   { pat: [{aim: web}, {on: inbox}, {list: pr}], file: './web_list_pr' }
   { pat: [{aim: web}, {on: inbox}, {list: issue}], file: './web_list_issue' }
+  { pat: [{aim: web}, {on: inbox}, {list: drift}], file: './web_list_drift' }
   { pat: [{aim: web}, {on: inbox}, {load: pr}], file: './web_load_pr' }
 
 ]

@@ -23,6 +23,10 @@ const KIND_PRIORITY: Record<string, string> = {
   // Informational surfacing, not itself a blocker - the grouped members
   // already carry their own (now) priority.
   'campaign.bot_pr': 'later',
+  // SPEC §12.2's own "soon" example is "policy drift on an active repo" -
+  // the "later" half of that pair (archived/low-activity repos) needs
+  // activity data we don't track, so every drift item gets 'soon'.
+  'repo.drift': 'soon',
 }
 
 function priorityFor(kind: string) {
