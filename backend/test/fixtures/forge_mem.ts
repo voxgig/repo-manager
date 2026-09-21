@@ -197,46 +197,67 @@ module.exports = function forge_mem(this: any) {
   }
 
   // Policy checks (SPEC §14.1). standard-ci's `applies: { hasFile:
-  // package.json }` (§14.1's own example) means every repo meant to be
-  // "applicable" - compliant OR drifted, not not-applicable - needs at
-  // least a package.json here, even the ones with no other files. Every
-  // pre-existing test repo (r1-r7) gets one so the drift check - which runs
-  // over every repo_id any sync call touches - can't change the
-  // created/resolved counts the many non-drift sync tests already assert.
+  // package.json }` and pinned-actions' `applies: { hasFile: ci.yml }`
+  // (§14.1's own example shape) mean every repo meant to be "applicable" -
+  // compliant OR drifted, not not-applicable - needs those files present
+  // here, even the ones with no other content. dependency-bot has no
+  // applies gate (Renovate suits any repo type), so every pre-existing
+  // test repo (r1-r7) also needs a renovate.json - otherwise the new
+  // policy would drift them too and change the created/resolved counts
+  // the many non-drift sync tests already assert.
   const CI_COMPLIANT = { '.github/workflows/ci.yml': 'name: CI\non:\n  push:\njobs:\n  test:\n    strategy:\n      matrix:\n        node-version: [22, 24]\n' }
+  // Same standard-ci content, plus a `uses:` step - CI_PINNED's is pinned
+  // to a full commit SHA (compliant under pinned-actions too), CI_UNPINNED's
+  // is pinned to a mutable tag (drifted under pinned-actions specifically,
+  // while still compliant under standard-ci - the two policies disagree on
+  // purpose, to show why the matrix needs more than one column).
+  const CI_PINNED = { '.github/workflows/ci.yml': 'name: CI\non:\n  push:\njobs:\n  test:\n    strategy:\n      matrix:\n        node-version: [22, 24]\n    steps:\n      - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3\n' }
+  const CI_UNPINNED = { '.github/workflows/ci.yml': 'name: CI\non:\n  push:\njobs:\n  test:\n    strategy:\n      matrix:\n        node-version: [22, 24]\n    steps:\n      - uses: actions/checkout@v4\n' }
   const PKG_JSON = { 'package.json': '{"name": "demo", "scripts": {"test": "vitest run"}}' }
+  const RENOVATE = { 'renovate.json': '{"extends": ["config:recommended"]}' }
   const files: any = {
-    'r1': { ...CI_COMPLIANT, ...PKG_JSON },
-    'r2': { ...CI_COMPLIANT, ...PKG_JSON },
-    'r3': { ...CI_COMPLIANT, ...PKG_JSON },
-    'r4': { ...CI_COMPLIANT, ...PKG_JSON },
-    'r5': { ...CI_COMPLIANT, ...PKG_JSON },
-    'r6': { ...CI_COMPLIANT, ...PKG_JSON },
-    // r7: test-only, deliberately drifted (has package.json, so it's
-    // applicable, but no ci.yml) - used only by drift-specific tests.
-    'r7': PKG_JSON,
+    'r1': { ...CI_COMPLIANT, ...PKG_JSON, ...RENOVATE },
+    'r2': { ...CI_COMPLIANT, ...PKG_JSON, ...RENOVATE },
+    'r3': { ...CI_COMPLIANT, ...PKG_JSON, ...RENOVATE },
+    'r4': { ...CI_COMPLIANT, ...PKG_JSON, ...RENOVATE },
+    'r5': { ...CI_COMPLIANT, ...PKG_JSON, ...RENOVATE },
+    'r6': { ...CI_COMPLIANT, ...PKG_JSON, ...RENOVATE },
+    // r7: test-only, deliberately drifted on standard-ci (has package.json,
+    // so it's applicable, but no ci.yml - also not-applicable on
+    // pinned-actions for the same reason) - used only by drift-specific
+    // tests, so dependency-bot stays compliant here too.
+    'r7': { ...PKG_JSON, ...RENOVATE },
 
-    // Demo repos (REPO_MANAGER_FORGE=mem) - voxgig/model and voxgig/struct
-    // are compliant; the rest of the demo fleet below is applicable but
-    // missing/wrong ci.yml (drifted) - a realistic mix, not every repo the
-    // same.
-    'voxgig/model': { ...CI_COMPLIANT, ...PKG_JSON },
+    // Demo repos (REPO_MANAGER_FORGE=mem) - a spread across all three
+    // policies, not every repo the same:
+    //   voxgig/model            compliant / compliant / compliant
+    //   voxgig/struct           compliant / compliant / drifted
+    //   tabnas/jsonic           compliant / drifted    / drifted
+    //   senecajs/seneca-redis-store  drifted / not-applicable / compliant
+    //   voxgig/sdkgen           drifted / not-applicable / compliant
+    //   voxgig-sdk/stripe-sdk   drifted / not-applicable / drifted
+    //   voxgig/station          drifted / not-applicable / drifted
+    //   voxgig/sekreto          drifted / not-applicable / drifted
+    'voxgig/model': { ...CI_PINNED, ...PKG_JSON, ...RENOVATE },
     'voxgig/struct': { ...CI_COMPLIANT, ...PKG_JSON },
-    'senecajs/seneca-redis-store': PKG_JSON,
+    'tabnas/jsonic': { ...CI_UNPINNED, ...PKG_JSON },
+    'senecajs/seneca-redis-store': { ...PKG_JSON, ...RENOVATE },
+    'voxgig/sdkgen': { ...PKG_JSON, ...RENOVATE },
     'voxgig-sdk/stripe-sdk': PKG_JSON,
-    'tabnas/jsonic': PKG_JSON,
-    'voxgig/sdkgen': PKG_JSON,
     'voxgig/station': PKG_JSON,
     'voxgig/sekreto': PKG_JSON,
 
     // tabnas/native-bridge: no package.json at all (tabnas ships native-
     // library repos with no Node tooling, per docs/inventory.md) - the
-    // `applies` gate excludes it, a real not-applicable case rather than a
-    // drifted one. Left with no entry here at all.
+    // `applies` gate excludes it from standard-ci and pinned-actions (real
+    // not-applicable cases), while dependency-bot still drifts it (no
+    // renovate.json - Renovate suits any repo type). Left with no entry
+    // here at all.
 
     // voxgig-sdk/legacy-connector: the forge call itself fails (see
     // get:file below) - simulates a real forge error (rate limit, network)
-    // so the matrix's error state has a live example too.
+    // so the matrix's error state has a live example, across all three
+    // policies at once (a down forge affects every check on that repo).
   }
 
   seneca.message('aim:forge,list:pr,forge:mem', async function (msg: any) {

@@ -1,19 +1,24 @@
 // SPEC §14.1: a policy declares what compliance means (check) and how to
 // reach it (apply) - apply/the bulk-write pipeline is Stage 3 (§19.6);
-// this is check-only. Seeded like rpm/reply's saved replies - one real,
-// spec-worked example (standard-ci), not a management UI yet.
+// this is check-only. Seeded like rpm/reply's saved replies - three real,
+// spec-grounded examples, not a management UI yet: standard-ci is §14.1's
+// own worked example; dependency-bot and pinned-actions come from
+// docs/inventory.md's Stage 0 fleet audit (the "Definition of Done"
+// tabnas/status already checks by hand, and the "no dependency automation"
+// finding called out as the fleet's highest-value gap).
 //
-// Two action kinds only: file.exists, file.matches. json.equals/yaml.merge/
-// text.replace/exec/repo.settings from §14.1's full vocabulary aren't
-// modeled - each needs its own executor and, for the API-backed ones, its
-// own forge action; file.exists/file.matches cover the worked example
-// (SPEC §14.1's own standard-ci policy) using the one read primitive we
-// have (aim:forge,get:file).
+// One action kind, two modes: file.exists, and file.matches with either
+// `contains` (a substring must be present) or `regex` + `mode:'notMatches'`
+// (a pattern must NOT be present - pinned-actions' only real option, since
+// "every `uses:` line is pinned" isn't expressible as "contains this one
+// substring"). json.equals/yaml.merge/text.replace/exec/repo.settings from
+// §14.1's full vocabulary aren't modeled - each needs its own executor
+// and, for the API-backed ones, its own forge action.
 //
 // `applies` (SPEC §14.1's own example) is modeled for `hasFile` only, using
-// that same get:file primitive - `languages` isn't modeled: no forge action
+// the same get:file primitive - `languages` isn't modeled: no forge action
 // reports a repo's language breakdown, and faking that isn't worth it for
-// one seeded policy.
+// three seeded policies.
 
 const SEED_POLICIES = [
   {
@@ -23,6 +28,31 @@ const SEED_POLICIES = [
     check: [
       { action: 'file.exists', path: '.github/workflows/ci.yml' },
       { action: 'file.matches', path: '.github/workflows/ci.yml', contains: 'node-version: [22, 24]' },
+    ],
+  },
+  {
+    id: 'dependency-bot',
+    description: 'Every repo has automated dependency updates enabled',
+    check: [
+      { action: 'file.exists', path: 'renovate.json' },
+    ],
+  },
+  {
+    id: 'pinned-actions',
+    description: 'Every GitHub Actions workflow pins actions to a full commit SHA, not a mutable tag',
+    // Gated on the workflow existing at all - a repo with no CI workflow
+    // has nothing for this policy to check (that gap is standard-ci's
+    // concern), so it reads not-applicable here rather than drifted.
+    applies: { hasFile: '.github/workflows/ci.yml' },
+    check: [
+      {
+        action: 'file.matches', path: '.github/workflows/ci.yml', mode: 'notMatches',
+        // A `uses:` ref whose tag isn't a full 40-char commit SHA - good
+        // enough to catch the common case (@v4, @main), not a bulletproof
+        // YAML-aware parse.
+        regex: 'uses:\\s*[^\\s@]+@(?![0-9a-f]{40}\\b)\\S+',
+        describe: 'has an action pinned to a tag/branch instead of a full commit SHA',
+      },
     ],
   },
 ]
@@ -48,10 +78,15 @@ async function runCheck(seneca: any, forge: string, repo_id: string, check: any)
     return res.exists ? { status: 'pass' } : { status: 'fail', why: `${check.path} not found` }
   }
   if ('file.matches' === check.action) {
-    const matches = !!res.exists && res.content.includes(check.contains)
-    return matches
-      ? { status: 'pass' }
-      : { status: 'fail', why: res.exists ? `${check.path} does not contain "${check.contains}"` : `${check.path} not found` }
+    if (!res.exists) {
+      return { status: 'fail', why: `${check.path} not found` }
+    }
+    const found = check.regex ? new RegExp(check.regex).test(res.content) : res.content.includes(check.contains)
+    const pass = 'notMatches' === check.mode ? !found : found
+    if (pass) {
+      return { status: 'pass' }
+    }
+    return { status: 'fail', why: `${check.path} ${check.describe || `does not contain "${check.contains}"`}` }
   }
   return { status: 'error', why: `unknown check action: ${check.action}` }
 }
