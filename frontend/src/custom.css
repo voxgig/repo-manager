@@ -2,8 +2,35 @@
    theme variables (defined in style.css) to restyle the whole app, and add
    any rules you like. */
 
-:root {
-  /* e.g. --vg-primary: #7c3aed; --vg-topbar-bg: #111827; */
+/* voxgig.com's brand palette (fetched live 2026-09-21) - same accent
+   pink/border/backgrounds in both themes; only bg/surface/text/muted
+   differ, matching the site's own light/dark split. */
+
+:root,
+:root[data-theme-mode="dark"] {
+  --vg-bg: #0f0f15;
+  --vg-topbar-bg: #0f0f15;
+  --vg-topbar-fg: #ececf1;
+  --vg-text: #ececf1;
+  --vg-muted: #a9b1bd;
+  --vg-primary: #e70042;
+  --vg-primary-dark: #ce0246;
+  --vg-accent-bg: #e700421f;
+  --vg-surface: #17171e;
+  --vg-border: #232330;
+}
+
+:root[data-theme-mode="light"] {
+  --vg-bg: #f5f5f9;
+  --vg-topbar-bg: #f5f5f9;
+  --vg-topbar-fg: #0a0a0a;
+  --vg-text: #0a0a0a;
+  --vg-muted: #4d5761;
+  --vg-primary: #e70042;
+  --vg-primary-dark: #ce0246;
+  --vg-accent-bg: #e700421f;
+  --vg-surface: #ffffff;
+  --vg-border: #ecebf0;
 }
 
 /* ---- inbox (cmp/inbox.js) ---- */
@@ -21,6 +48,9 @@
 .vg-cmdk-btn { background: #1b2a3a; color: #e6edf3; border: 1px solid #2b3d4f; border-radius: 6px;
   padding: 0.3rem 0.6rem; font-size: 0.8rem; }
 .vg-cmdk-btn:hover { background: #22334a; }
+.vg-theme-btn { background: #1b2a3a; color: #e6edf3; border: 1px solid #2b3d4f; border-radius: 6px;
+  padding: 0.3rem 0.55rem; font-size: 0.9rem; line-height: 1; cursor: pointer; }
+.vg-theme-btn:hover { background: #22334a; }
 
 /* ---- command bar (SPEC §13.4) ---- */
 
@@ -128,7 +158,7 @@ strong.vg-priority-later { color: var(--vg-muted); }
 .vg-kind-badge { font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 4px;
   border: 1px solid transparent; background: var(--vg-accent-bg); color: var(--vg-primary); }
 .vg-kind-pr-review_requested { background: var(--vg-primary-dark); color: #fff; }
-.vg-kind-pr-inbound { background: #089ea5; color: #fff; }
+.vg-kind-pr-inbound { background: #00c6d8; color: #fff; }
 .vg-kind-issue-assigned,
 .vg-kind-issue-mentioned { background: var(--vg-primary-dark); color: #fff; }
 .vg-kind-pr-stale,
@@ -202,6 +232,10 @@ kbd { background: var(--vg-surface); border: 1px solid var(--vg-border); border-
 .vg-drift-cell.vg-focused { outline: 2px solid var(--vg-primary); outline-offset: -2px; }
 .vg-drift-cell.vg-drift-ok { color: var(--vg-success); }
 .vg-drift-cell.vg-drift-bad { color: #f8b833; font-weight: 600; }
+.vg-drift-cell.vg-drift-na { color: var(--vg-muted); }
+.vg-drift-cell.vg-drift-error { color: var(--vg-primary-dark); font-weight: 600; }
 
 .vg-drift-status { margin: 0.8rem 0; font-weight: 600; }
 .vg-drift-status.vg-drift-bad { color: #f8b833; }
+.vg-drift-status.vg-drift-na { color: var(--vg-muted); font-weight: 400; }
+.vg-drift-status.vg-drift-error { color: var(--vg-primary-dark); }

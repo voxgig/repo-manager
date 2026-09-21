@@ -1,6 +1,8 @@
 // The drift matrix (SPEC §14.3): every (repo, policy) cell, not just the
 // non-compliant ones sync_item.ts turns into rpm/item rows - the full grid,
-// read-only, straight from check_policy's own runPolicy.
+// read-only, straight from check_policy's own runPolicy. Each cell's
+// `status` is one of SPEC §14.3's four: compliant, drifted, not-applicable,
+// error.
 
 const { SEED_POLICIES, runPolicy } = require('./check_policy')
 
@@ -14,7 +16,7 @@ module.exports = function make_list_drift() {
     for (const repo_id of repo_ids) {
       for (const policy of SEED_POLICIES) {
         const result = await runPolicy(seneca, forge, repo_id, policy)
-        cells.push({ repo: repo_id, policy_id: policy.id, compliant: result.compliant, why: result.why })
+        cells.push({ repo: repo_id, policy_id: policy.id, status: result.status, why: result.why })
       }
     }
 

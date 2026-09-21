@@ -791,17 +791,151 @@ describe('inbox', () => {
 
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['r1', 'r7'], forge: 'mem' })
     expect(res.ok).true()
-    expect(res.policies.length).equal(1)
-    expect(res.policies[0].id).equal('standard-ci')
-    expect(res.cells.length).equal(2)
+    expect(res.policies.map((p: any) => p.id).sort()).equal(['dependency-bot', 'pinned-actions', 'standard-ci'])
+    expect(res.cells.length).equal(6)
 
-    const byRepo: any = {}
-    for (const cell of res.cells) byRepo[cell.repo] = cell
+    const cellFor = (repo: string, policyId: string) =>
+      res.cells.find((c: any) => c.repo === repo && c.policy_id === policyId)
 
-    expect(byRepo['r1'].compliant).true()
-    expect(byRepo['r1'].why).undefined()
-    expect(byRepo['r7'].compliant).false()
-    expect(byRepo['r7'].why).contain('not found')
+    expect(cellFor('r1', 'standard-ci').status).equal('compliant')
+    expect(cellFor('r1', 'standard-ci').why).undefined()
+    expect(cellFor('r7', 'standard-ci').status).equal('drifted')
+    expect(cellFor('r7', 'standard-ci').why).contain('not found')
+
+    await seneca.close()
+  })
+
+
+  // SPEC §14.3's other two cell states: not-applicable (the policy's own
+  // `applies: { hasFile: package.json }` gate excludes a repo that has no
+  // package.json at all) and error (the forge call itself fails, so
+  // compliance can't be determined - distinct from a genuine drift).
+
+  test('list-drift-reports-not-applicable-for-a-repo-with-no-package-json', async () => {
+    const seneca = await makeSeneca()
+
+    // No files entry at all for this repo_id - forge_mem's get:file
+    // returns exists:false for every path, including package.json.
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['tabnas/native-bridge'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.cells[0].status).equal('not-applicable')
+    expect(res.cells[0].why).contain('package.json')
+
+    await seneca.close()
+  })
+
+  test('list-drift-reports-error-when-the-forge-call-itself-fails', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig-sdk/legacy-connector'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.cells[0].status).equal('error')
+    expect(res.cells[0].why).equal('rate limited')
+
+    await seneca.close()
+  })
+
+
+  // dependency-bot (SPEC §14.1-shaped, from docs/inventory.md's Stage 0
+  // finding) - file.exists only, no applies gate.
+
+  test('dependency-bot-drifts-a-repo-with-no-renovate-json', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig-sdk/stripe-sdk'], forge: 'mem' })
+    const cell = res.cells.find((c: any) => 'dependency-bot' === c.policy_id)
+    expect(cell.status).equal('drifted')
+    expect(cell.why).contain('renovate.json not found')
+
+    await seneca.close()
+  })
+
+  test('dependency-bot-is-compliant-when-renovate-json-is-present', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig/sdkgen'], forge: 'mem' })
+    const cell = res.cells.find((c: any) => 'dependency-bot' === c.policy_id)
+    expect(cell.status).equal('compliant')
+
+    await seneca.close()
+  })
+
+
+  // pinned-actions - the file.matches `regex` + `mode:'notMatches'` path,
+  // the one case standard-ci's plain `contains` can't express. Deliberately
+  // disagrees with standard-ci on tabnas/jsonic to show why the matrix
+  // needs more than one column: a repo can pass one policy and fail another.
+
+  test('pinned-actions-drifts-a-workflow-with-a-tag-pinned-action', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['tabnas/jsonic'], forge: 'mem' })
+    const byPolicy: any = {}
+    for (const cell of res.cells) byPolicy[cell.policy_id] = cell
+
+    expect(byPolicy['standard-ci'].status).equal('compliant')
+    expect(byPolicy['pinned-actions'].status).equal('drifted')
+    expect(byPolicy['pinned-actions'].why).contain('tag/branch instead of a full commit SHA')
+
+    await seneca.close()
+  })
+
+  test('pinned-actions-is-compliant-for-a-sha-pinned-action', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig/model'], forge: 'mem' })
+    const cell = res.cells.find((c: any) => 'pinned-actions' === c.policy_id)
+    expect(cell.status).equal('compliant')
+
+    await seneca.close()
+  })
+
+  test('pinned-actions-is-not-applicable-when-there-is-no-ci-workflow-at-all', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig/station'], forge: 'mem' })
+    const cell = res.cells.find((c: any) => 'pinned-actions' === c.policy_id)
+    expect(cell.status).equal('not-applicable')
+
+    await seneca.close()
+  })
+
+  test('sync-does-not-create-a-drift-item-for-a-repo-where-every-policy-errors', async () => {
+    const seneca = await makeSeneca()
+
+    // voxgig-sdk/legacy-connector: the forge call itself fails, so all
+    // three policies read error - none of them ever becomes a work item.
+    const synced = await seneca.post({
+      aim: 'inbox', sync: 'item', forge: 'mem', for_user: 'maintainer1',
+      repo_ids: ['voxgig-sdk/legacy-connector'],
+    })
+    expect(synced.ok).true()
+    expect(synced.created).equal(0)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    expect(listed.items.some((it: any) => 'repo.drift' === it.kind)).false()
+
+    await seneca.close()
+  })
+
+  test('sync-creates-a-drift-item-only-for-the-one-applicable-drifted-policy', async () => {
+    const seneca = await makeSeneca()
+
+    // tabnas/native-bridge: not-applicable for standard-ci and
+    // pinned-actions (no package.json/ci.yml), but dependency-bot has no
+    // applies gate, so it's genuinely drifted there (no renovate.json) -
+    // exactly one item, not three, not zero.
+    const synced = await seneca.post({
+      aim: 'inbox', sync: 'item', forge: 'mem', for_user: 'maintainer1',
+      repo_ids: ['tabnas/native-bridge'],
+    })
+    expect(synced.ok).true()
+    expect(synced.created).equal(1)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    const drifted = listed.items.filter((it: any) => 'repo.drift' === it.kind)
+    expect(drifted.length).equal(1)
+    expect(drifted[0].subject_id).equal('dependency-bot')
 
     await seneca.close()
   })
