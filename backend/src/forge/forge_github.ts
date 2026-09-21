@@ -121,6 +121,22 @@ module.exports = function forge_github(this: any, options: any) {
     return { ok: true }
   })
 
+  // The policy engine's file.exists/file.matches checks (SPEC §14.1) -
+  // single-file case only (see the Content entity's own doc). Decoded to
+  // plain text here so a check never has to know the encoding came back
+  // base64 - that's a wire detail of this one forge, not the check's concern.
+  seneca.message('aim:forge,get:file,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    const file = await this.entity('provider/github/content').load$({ id: msg.path, owner, repo })
+    if (!file) {
+      return { ok: true, exists: false }
+    }
+    return {
+      ok: true, exists: true,
+      content: 'base64' === file.encoding ? Buffer.from(file.content, 'base64').toString('utf8') : file.content,
+    }
+  })
+
   return { name: 'forge_github' }
 }
 

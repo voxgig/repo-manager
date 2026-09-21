@@ -74,6 +74,35 @@ module.exports = function forge_mem(this: any) {
       additions: 4, deletions: 4, changed_files: 1, commits: 1,
       mergeable: true, mergeable_state: 'clean', draft: false, merged: false,
     },
+
+    // r4/r5: test-only (like r3), the same renovate-bot bump opened in two
+    // repos - fingerprintTitle() normalises the version numbers away, so
+    // these group into one bot-pr campaign (SPEC §12.4). No requested
+    // reviewer, not maintainer1's own -> pr.inbound, same as any contributor
+    // PR - the campaign grouping runs over exactly that stream.
+    'p9': {
+      id: 'p9', repo_id: 'r4', title: 'Bump lodash from 4.17.20 to 4.17.21', state: 'open',
+      url: 'https://example.com/r4/pull/9', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 10 * 60000,
+    },
+    'p10': {
+      id: 'p10', repo_id: 'r5', title: 'Bump lodash from 4.17.19 to 4.17.20', state: 'open',
+      url: 'https://example.com/r5/pull/10', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 20 * 60000,
+    },
+
+    // Demo repos - same campaign shape, visible in the REPO_MANAGER_FORGE=mem
+    // demo instance.
+    'p11': {
+      id: 'p11', repo_id: 'voxgig-sdk/stripe-sdk', title: 'Bump typescript from 5.3.0 to 5.4.0', state: 'open',
+      url: 'https://example.com/voxgig-sdk/stripe-sdk/pull/11', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 5 * 60000,
+    },
+    'p12': {
+      id: 'p12', repo_id: 'tabnas/jsonic', title: 'Bump typescript from 5.2.0 to 5.3.0', state: 'open',
+      url: 'https://example.com/tabnas/jsonic/pull/12', author: 'renovate-bot',
+      requested_reviewers: [], updated_at: Date.now() - 40 * 60000,
+    },
   }
 
   const issues: any = {
@@ -131,6 +160,22 @@ module.exports = function forge_mem(this: any) {
 
   const checks: any = {
     'c1': { id: 'c1', repo_id: 'r1', pr_id: 'p1', name: 'ci', status: 'success' },
+  }
+
+  // Policy checks (SPEC §14.1). Every pre-existing test repo (r1-r6) is
+  // made CI-compliant here so the drift check - which runs over every
+  // repo_id any sync call touches - can't change the created/resolved
+  // counts the many non-drift sync tests already assert. r7 is the one
+  // dedicated drifted repo (no files at all), used only by drift-specific
+  // tests.
+  const CI_COMPLIANT = { '.github/workflows/ci.yml': 'name: CI\non:\n  push:\njobs:\n  test:\n    strategy:\n      matrix:\n        node-version: [22, 24]\n' }
+  const files: any = {
+    'r1': { ...CI_COMPLIANT, 'package.json': '{"name": "r1", "scripts": {"test": "vitest run"}}' },
+    'r2': CI_COMPLIANT,
+    'r3': CI_COMPLIANT,
+    'r4': CI_COMPLIANT,
+    'r5': CI_COMPLIANT,
+    'r6': CI_COMPLIANT,
   }
 
   seneca.message('aim:forge,list:pr,forge:mem', async function (msg: any) {
@@ -215,6 +260,12 @@ module.exports = function forge_mem(this: any) {
 
   seneca.message('aim:forge,get:info,forge:mem', async function () {
     return { ok: true, capabilities: ['list:pr', 'open:pr', 'comment:issue', 'label:issue', 'assign:issue', 'close:issue', 'approve:pr', 'request:review', 'merge:pr', 'dismiss:alert', 'list:alert', 'list:check'] }
+  })
+
+  seneca.message('aim:forge,get:file,forge:mem', async function (msg: any) {
+    const repoFiles = files[msg.repo_id]
+    const content = repoFiles && repoFiles[msg.path]
+    return undefined === content ? { ok: true, exists: false } : { ok: true, exists: true, content }
   })
 
   return { name: 'forge_mem' }

@@ -20,6 +20,13 @@ const KIND_PRIORITY: Record<string, string> = {
   'issue.assigned': 'soon',
   'issue.mentioned': 'soon',
   'issue.untriaged': 'later',
+  // Informational surfacing, not itself a blocker - the grouped members
+  // already carry their own (now) priority.
+  'campaign.bot_pr': 'later',
+  // SPEC §12.2's own "soon" example is "policy drift on an active repo" -
+  // the "later" half of that pair (archived/low-activity repos) needs
+  // activity data we don't track, so every drift item gets 'soon'.
+  'repo.drift': 'soon',
 }
 
 function priorityFor(kind: string) {
@@ -127,4 +134,16 @@ function detectIssueUntriaged(issue: any, _for_user: string) {
 
 const ISSUE_DETECTORS = [detectIssueAssigned, detectIssueMentioned, detectIssueUntriaged]
 
-module.exports = { PR_DETECTORS, ISSUE_DETECTORS, priorityFor }
+// SPEC §12.4's bot-PR grouping key: "PR title fingerprint + author". Strips
+// digits/punctuation so "Bump lodash 4.17.20 -> 4.17.21" and "Bump lodash
+// 4.17.19 -> 4.17.20" fingerprint the same - the number is exactly what
+// varies run to run for a bot that opens the same shape of PR everywhere.
+function fingerprintTitle(title: string) {
+  return String(title || '')
+    .toLowerCase()
+    .replace(/[0-9]+/g, '#')
+    .replace(/[^a-z#]+/g, ' ')
+    .trim()
+}
+
+module.exports = { PR_DETECTORS, ISSUE_DETECTORS, priorityFor, fingerprintTitle }

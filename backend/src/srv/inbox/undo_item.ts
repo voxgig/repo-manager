@@ -24,7 +24,9 @@ module.exports = function make_undo_item() {
     }
     else if ('snooze' === msg.kind && 'snoozed' === item.state && 'snooze' === item.last_action) {
       item.state = 'open'
-      item.snooze_until = undefined
+      // snooze_until is left as-is, not cleared - see sync_item.ts's
+      // resync-reopen branch for why (schema won't take null, and every
+      // reader gates on state === 'snoozed' first anyway).
     }
     else {
       return { ok: false, why: 'nothing-to-undo' }
