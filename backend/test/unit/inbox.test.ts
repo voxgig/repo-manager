@@ -798,10 +798,56 @@ describe('inbox', () => {
     const byRepo: any = {}
     for (const cell of res.cells) byRepo[cell.repo] = cell
 
-    expect(byRepo['r1'].compliant).true()
+    expect(byRepo['r1'].status).equal('compliant')
     expect(byRepo['r1'].why).undefined()
-    expect(byRepo['r7'].compliant).false()
+    expect(byRepo['r7'].status).equal('drifted')
     expect(byRepo['r7'].why).contain('not found')
+
+    await seneca.close()
+  })
+
+
+  // SPEC §14.3's other two cell states: not-applicable (the policy's own
+  // `applies: { hasFile: package.json }` gate excludes a repo that has no
+  // package.json at all) and error (the forge call itself fails, so
+  // compliance can't be determined - distinct from a genuine drift).
+
+  test('list-drift-reports-not-applicable-for-a-repo-with-no-package-json', async () => {
+    const seneca = await makeSeneca()
+
+    // No files entry at all for this repo_id - forge_mem's get:file
+    // returns exists:false for every path, including package.json.
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['tabnas/native-bridge'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.cells[0].status).equal('not-applicable')
+    expect(res.cells[0].why).contain('package.json')
+
+    await seneca.close()
+  })
+
+  test('list-drift-reports-error-when-the-forge-call-itself-fails', async () => {
+    const seneca = await makeSeneca()
+
+    const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig-sdk/legacy-connector'], forge: 'mem' })
+    expect(res.ok).true()
+    expect(res.cells[0].status).equal('error')
+    expect(res.cells[0].why).equal('rate limited')
+
+    await seneca.close()
+  })
+
+  test('sync-does-not-create-a-drift-item-for-not-applicable-or-error-repos', async () => {
+    const seneca = await makeSeneca()
+
+    const synced = await seneca.post({
+      aim: 'inbox', sync: 'item', forge: 'mem', for_user: 'maintainer1',
+      repo_ids: ['tabnas/native-bridge', 'voxgig-sdk/legacy-connector'],
+    })
+    expect(synced.ok).true()
+    expect(synced.created).equal(0)
+
+    const listed = await seneca.post('aim:inbox,list:item')
+    expect(listed.items.some((it: any) => 'repo.drift' === it.kind)).false()
 
     await seneca.close()
   })

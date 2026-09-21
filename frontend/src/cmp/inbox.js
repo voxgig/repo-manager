@@ -7,6 +7,7 @@
 // deliberately shallow.
 
 import * as Api from '../api.js'
+import * as Theme from '../theme.js'
 
 const KIND_LABEL = {
   'pr.review_requested': 'review',
@@ -19,6 +20,16 @@ const KIND_LABEL = {
   'issue.untriaged': 'untriaged',
   'campaign.bot_pr': 'campaign',
   'repo.drift': 'drift',
+}
+
+// SPEC §14.3's four drift-matrix cell states - cellLabel is what the grid
+// cell itself shows, focusLabel/cls drive the side panel and both share
+// the cell's own color via the vg-drift-* classes (custom.css).
+const DRIFT_STATUS = {
+  compliant: { cellLabel: '✓', focusLabel: '✓ compliant', cls: 'vg-drift-ok' },
+  drifted: { cellLabel: '✕ drift', focusLabel: '✕ drifted', cls: 'vg-drift-bad' },
+  'not-applicable': { cellLabel: '–', focusLabel: '– not applicable', cls: 'vg-drift-na' },
+  error: { cellLabel: '⚠ error', focusLabel: '⚠ error', cls: 'vg-drift-error' },
 }
 
 // The known fleet (docs/inventory.md) - static until org modeling (Stage 4
@@ -203,7 +214,7 @@ class VgInbox extends HTMLElement {
         (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) || (b.updated_at || 0) - (a.updated_at || 0))
     }
     this.counts[this.view] = 'drift' === this.view
-      ? this.driftCells.filter((c) => !c.compliant).length
+      ? this.driftCells.filter((c) => 'drifted' === c.status).length
       : this.items.length
     this.clampFocus()
     this.render()
@@ -798,6 +809,36 @@ class VgInbox extends HTMLElement {
     }
   }
 
+  // Shared by the list and drift pages (the detail page runs its own,
+  // narrower topbar) - crumbTitle is the only thing that varies.
+  renderTopbar(crumbTitle) {
+    return `
+      <header class="vg-inbox-topbar">
+        <span class="vg-inbox-brand">🔴 repo-manager</span>
+        <span class="vg-inbox-crumb">/ ${esc(crumbTitle)}</span>
+        <div class="vg-spacer"></div>
+        ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
+        <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
+        <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
+        <button class="vg-theme-btn" id="vg-theme-toggle" title="toggle theme">${'dark' === Theme.current() ? '☀' : '🌙'}</button>
+        <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
+      </header>`
+  }
+
+  wireTopbar() {
+    const cmdkBtn = this.querySelector('#vg-cmdk-open')
+    if (cmdkBtn) {
+      cmdkBtn.onclick = () => this.togglePalette(true)
+    }
+    const themeBtn = this.querySelector('#vg-theme-toggle')
+    if (themeBtn) {
+      themeBtn.onclick = () => {
+        Theme.nextMode()
+        this.render()
+      }
+    }
+  }
+
   renderListPage() {
     const items = this.visibleItems()
     const focused = items[this.focusIndex]
@@ -806,15 +847,7 @@ class VgInbox extends HTMLElement {
 
     return `
       <div class="vg-inbox">
-        <header class="vg-inbox-topbar">
-          <span class="vg-inbox-brand">🔴 repo-manager</span>
-          <span class="vg-inbox-crumb">/ ${esc(viewTitle)}</span>
-          <div class="vg-spacer"></div>
-          ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
-          <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
-          <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
-          <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
-        </header>
+        ${this.renderTopbar(viewTitle)}
         <div class="vg-inbox-shell">
           ${this.renderNav()}
           <div class="vg-inbox-main">
@@ -868,11 +901,7 @@ class VgInbox extends HTMLElement {
     }
 
     this.wireNav()
-
-    const cmdkBtn = this.querySelector('#vg-cmdk-open')
-    if (cmdkBtn) {
-      cmdkBtn.onclick = () => this.togglePalette(true)
-    }
+    this.wireTopbar()
 
     const searchInput = this.querySelector('.vg-search-input')
     if (searchInput) {
@@ -1237,15 +1266,7 @@ class VgInbox extends HTMLElement {
 
     return `
       <div class="vg-inbox">
-        <header class="vg-inbox-topbar">
-          <span class="vg-inbox-brand">🔴 repo-manager</span>
-          <span class="vg-inbox-crumb">/ ${esc(VIEWS.drift.title)}</span>
-          <div class="vg-spacer"></div>
-          ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
-          <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
-          <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
-          <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
-        </header>
+        ${this.renderTopbar(VIEWS.drift.title)}
         <div class="vg-inbox-shell">
           ${this.renderNav()}
           <div class="vg-inbox-main">
@@ -1260,16 +1281,17 @@ class VgInbox extends HTMLElement {
                             <td class="vg-drift-repo">${esc(repo)}</td>
                             ${policies.map((p, ci) => {
                               const cell = this.driftCellAt(repo, p.id)
-                              const cls = !cell ? '' : cell.compliant ? ' vg-drift-ok' : ' vg-drift-bad'
+                              const info = cell && DRIFT_STATUS[cell.status]
+                              const cls = info ? ' ' + info.cls : ''
                               const focus = ri === this.driftFocus.row && ci === this.driftFocus.col ? ' vg-focused' : ''
-                              const label = !cell ? '—' : cell.compliant ? '✓' : '✕ drift'
+                              const label = info ? info.cellLabel : '—'
                               return `<td class="vg-drift-cell${cls}${focus}" data-row="${ri}" data-col="${ci}">${label}</td>`
                             }).join('')}
                           </tr>`).join('')}
                       </tbody>
                     </table>`
                   : '<div class="vg-empty">no repos configured</div>'}
-                ${repoIds.length && this.driftCells.some((c) => !c.compliant)
+                ${repoIds.length && this.driftCells.some((c) => 'drifted' === c.status)
                   ? '<div class="vg-inbox-footnote">every drifted cell is also a work item in the inbox</div>'
                   : ''}
               </div>
@@ -1288,22 +1310,19 @@ class VgInbox extends HTMLElement {
   }
 
   renderDriftFocus(repo, policy, cell) {
+    const info = DRIFT_STATUS[cell.status] || {}
     return `
       <div class="vg-focused-label">FOCUSED CELL</div>
       <h3 class="vg-focus-title">${esc(repo)} × ${esc(policy.id)}</h3>
       <div class="vg-muted">${esc(policy.description)}</div>
-      <div class="vg-drift-status${cell.compliant ? '' : ' vg-drift-bad'}">
-        ${cell.compliant ? '✓ compliant' : '✕ ' + esc(cell.why || 'drift')}
+      <div class="vg-drift-status ${esc(info.cls || '')}">
+        ${info.focusLabel || cell.status}${cell.why ? ' - ' + esc(cell.why) : ''}
       </div>`
   }
 
   wireDriftPage() {
     this.wireNav()
-
-    const cmdkBtn = this.querySelector('#vg-cmdk-open')
-    if (cmdkBtn) {
-      cmdkBtn.onclick = () => this.togglePalette(true)
-    }
+    this.wireTopbar()
 
     for (const cell of this.querySelectorAll('.vg-drift-cell')) {
       cell.onclick = () => {

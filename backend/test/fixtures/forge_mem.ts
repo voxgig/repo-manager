@@ -103,6 +103,28 @@ module.exports = function forge_mem(this: any) {
       url: 'https://example.com/tabnas/jsonic/pull/12', author: 'renovate-bot',
       requested_reviewers: [], updated_at: Date.now() - 40 * 60000,
     },
+
+    // More voxgig org repos, for a fuller demo fleet - same shape as the
+    // repos above, just more of the org that's the highest blast radius
+    // per docs/inventory.md.
+    'p13': {
+      id: 'p13', repo_id: 'voxgig/model', title: 'Add relations validator for ontology checks', state: 'open',
+      url: 'https://example.com/voxgig/model/pull/13', author: 'dev8',
+      requested_reviewers: ['maintainer1'], updated_at: Date.now() - 3 * 3600000,
+      body: 'Validates `relations`/`breaking` declarations at build time instead of only at generate time.',
+      head_ref: 'relations-validator', base_ref: 'main',
+      additions: 88, deletions: 6, changed_files: 4, commits: 3,
+      mergeable: true, mergeable_state: 'clean', draft: false, merged: false,
+    },
+    'p14': {
+      id: 'p14', repo_id: 'voxgig/station', title: 'Support per-connection station instances', state: 'open',
+      url: 'https://example.com/voxgig/station/pull/14', author: 'contributor9',
+      requested_reviewers: [], updated_at: Date.now() - 90 * 60000,
+      body: 'Named station instances instead of one shared connection - prep for the two-connection contract case.',
+      head_ref: 'per-connection-instances', base_ref: 'main',
+      additions: 156, deletions: 22, changed_files: 7, commits: 5,
+      mergeable: true, mergeable_state: 'clean', draft: false, merged: false,
+    },
   }
 
   const issues: any = {
@@ -152,6 +174,18 @@ module.exports = function forge_mem(this: any) {
       url: 'https://example.com/r3/issues/8', author: 'someone', assignees: [], labels: [],
       updated_at: Date.now(),
     },
+
+    // More voxgig org repos - see p13/p14's comment above.
+    'i9': {
+      id: 'i9', repo_id: 'voxgig/sekreto', title: 'Rotation schedule for the keymap is undocumented', state: 'open',
+      url: 'https://example.com/voxgig/sekreto/issues/9', author: 'user10', assignees: [], labels: [],
+      updated_at: Date.now() - 12 * 3600000,
+    },
+    'i10': {
+      id: 'i10', repo_id: 'voxgig/struct', title: 'Deep merge drops sparse array holes', state: 'open',
+      url: 'https://example.com/voxgig/struct/issues/10', author: 'user11', assignees: [], labels: ['bug'],
+      body: '@maintainer1 this breaks the ontology loader - can you take a look?', updated_at: Date.now() - 3 * 3600000,
+    },
   }
 
   const alerts: any = {
@@ -162,20 +196,47 @@ module.exports = function forge_mem(this: any) {
     'c1': { id: 'c1', repo_id: 'r1', pr_id: 'p1', name: 'ci', status: 'success' },
   }
 
-  // Policy checks (SPEC §14.1). Every pre-existing test repo (r1-r6) is
-  // made CI-compliant here so the drift check - which runs over every
-  // repo_id any sync call touches - can't change the created/resolved
-  // counts the many non-drift sync tests already assert. r7 is the one
-  // dedicated drifted repo (no files at all), used only by drift-specific
-  // tests.
+  // Policy checks (SPEC §14.1). standard-ci's `applies: { hasFile:
+  // package.json }` (§14.1's own example) means every repo meant to be
+  // "applicable" - compliant OR drifted, not not-applicable - needs at
+  // least a package.json here, even the ones with no other files. Every
+  // pre-existing test repo (r1-r7) gets one so the drift check - which runs
+  // over every repo_id any sync call touches - can't change the
+  // created/resolved counts the many non-drift sync tests already assert.
   const CI_COMPLIANT = { '.github/workflows/ci.yml': 'name: CI\non:\n  push:\njobs:\n  test:\n    strategy:\n      matrix:\n        node-version: [22, 24]\n' }
+  const PKG_JSON = { 'package.json': '{"name": "demo", "scripts": {"test": "vitest run"}}' }
   const files: any = {
-    'r1': { ...CI_COMPLIANT, 'package.json': '{"name": "r1", "scripts": {"test": "vitest run"}}' },
-    'r2': CI_COMPLIANT,
-    'r3': CI_COMPLIANT,
-    'r4': CI_COMPLIANT,
-    'r5': CI_COMPLIANT,
-    'r6': CI_COMPLIANT,
+    'r1': { ...CI_COMPLIANT, ...PKG_JSON },
+    'r2': { ...CI_COMPLIANT, ...PKG_JSON },
+    'r3': { ...CI_COMPLIANT, ...PKG_JSON },
+    'r4': { ...CI_COMPLIANT, ...PKG_JSON },
+    'r5': { ...CI_COMPLIANT, ...PKG_JSON },
+    'r6': { ...CI_COMPLIANT, ...PKG_JSON },
+    // r7: test-only, deliberately drifted (has package.json, so it's
+    // applicable, but no ci.yml) - used only by drift-specific tests.
+    'r7': PKG_JSON,
+
+    // Demo repos (REPO_MANAGER_FORGE=mem) - voxgig/model and voxgig/struct
+    // are compliant; the rest of the demo fleet below is applicable but
+    // missing/wrong ci.yml (drifted) - a realistic mix, not every repo the
+    // same.
+    'voxgig/model': { ...CI_COMPLIANT, ...PKG_JSON },
+    'voxgig/struct': { ...CI_COMPLIANT, ...PKG_JSON },
+    'senecajs/seneca-redis-store': PKG_JSON,
+    'voxgig-sdk/stripe-sdk': PKG_JSON,
+    'tabnas/jsonic': PKG_JSON,
+    'voxgig/sdkgen': PKG_JSON,
+    'voxgig/station': PKG_JSON,
+    'voxgig/sekreto': PKG_JSON,
+
+    // tabnas/native-bridge: no package.json at all (tabnas ships native-
+    // library repos with no Node tooling, per docs/inventory.md) - the
+    // `applies` gate excludes it, a real not-applicable case rather than a
+    // drifted one. Left with no entry here at all.
+
+    // voxgig-sdk/legacy-connector: the forge call itself fails (see
+    // get:file below) - simulates a real forge error (rate limit, network)
+    // so the matrix's error state has a live example too.
   }
 
   seneca.message('aim:forge,list:pr,forge:mem', async function (msg: any) {
@@ -263,6 +324,12 @@ module.exports = function forge_mem(this: any) {
   })
 
   seneca.message('aim:forge,get:file,forge:mem', async function (msg: any) {
+    // Demo repo for the drift matrix's error state (SPEC §14.3) - every
+    // read against it fails, the same shape a real rate-limited or
+    // unreachable forge call would return.
+    if ('voxgig-sdk/legacy-connector' === msg.repo_id) {
+      return { ok: false, why: 'rate limited' }
+    }
     const repoFiles = files[msg.repo_id]
     const content = repoFiles && repoFiles[msg.path]
     return undefined === content ? { ok: true, exists: false } : { ok: true, exists: true, content }

@@ -68,10 +68,14 @@ async function run() {
   else if ('dismiss' === cmd) {
     await cmd_dismiss(seneca, rest)
   }
+  else if ('status' === cmd) {
+    await cmd_status(seneca, rest)
+  }
   else {
     console.log('Usage: inbox sync --repos owner/name,owner/name --user login')
     console.log('       inbox list')
     console.log('       inbox dismiss <id>')
+    console.log('       inbox status --repos owner/name,owner/name [--format table|json|md]')
     process.exitCode = 1
   }
 
@@ -135,4 +139,78 @@ async function cmd_dismiss(seneca: any, args: string[]) {
   const res = await seneca.post({ aim: 'inbox', dismiss: 'item', id })
 
   console.log(res.ok ? `dismissed: ${id}` : `not found: ${id}`)
+}
+
+
+// SPEC §14.3: the drift matrix, available as a table, JSON, and Markdown
+// (for pasting into a tracking issue) - the CLI counterpart to the app's
+// own Drift matrix view (aim:inbox,list:drift), same data either way.
+const STATUS_SYMBOL: Record<string, string> = {
+  compliant: '✓', drifted: '✕ drift', 'not-applicable': '–', error: '⚠ error',
+}
+
+async function cmd_status(seneca: any, args: string[]) {
+  const repos = flag(args, 'repos')
+  const format = flag(args, 'format') || 'table'
+
+  if (!repos) {
+    console.log('Usage: inbox status --repos owner/name,owner/name [--format table|json|md]')
+    process.exitCode = 1
+    return
+  }
+
+  const res = await seneca.post({ aim: 'inbox', list: 'drift', repo_ids: repos.split(',') })
+  if (!res.ok) {
+    console.log('status failed')
+    process.exitCode = 1
+    return
+  }
+
+  const repoIds: string[] = []
+  for (const cell of res.cells) {
+    if (!repoIds.includes(cell.repo)) {
+      repoIds.push(cell.repo)
+    }
+  }
+  const cellAt = (repo: string, policyId: string) =>
+    res.cells.find((c: any) => c.repo === repo && c.policy_id === policyId)
+
+  if ('json' === format) {
+    console.log(JSON.stringify({ policies: res.policies, cells: res.cells }, null, 2))
+  }
+  else if ('md' === format) {
+    console.log(statusMarkdown(res.policies, repoIds, cellAt))
+  }
+  else {
+    console.log(statusTable(res.policies, repoIds, cellAt))
+  }
+}
+
+function statusMarkdown(policies: any[], repoIds: string[], cellAt: any) {
+  const header = `| repo | ${policies.map((p) => p.id).join(' | ')} |`
+  const sep = `| --- | ${policies.map(() => '---').join(' | ')} |`
+  const rows = repoIds.map((repo) => {
+    const cells = policies.map((p) => {
+      const cell = cellAt(repo, p.id)
+      return cell ? STATUS_SYMBOL[cell.status] : '–'
+    })
+    return `| ${repo} | ${cells.join(' | ')} |`
+  })
+  return [header, sep, ...rows].join('\n')
+}
+
+function statusTable(policies: any[], repoIds: string[], cellAt: any) {
+  const repoWidth = Math.max(4, ...repoIds.map((r) => r.length))
+  const colWidths = policies.map((p) => Math.max(p.id.length, 8))
+  const pad = (s: string, w: number) => s + ' '.repeat(Math.max(0, w - s.length))
+
+  const header = pad('REPO', repoWidth) + '  ' + policies.map((p, i) => pad(p.id, colWidths[i])).join('  ')
+  const rows = repoIds.map((repo) => {
+    const cells = policies.map((p, i) => {
+      const cell = cellAt(repo, p.id)
+      return pad(cell ? STATUS_SYMBOL[cell.status] : '-', colWidths[i])
+    })
+    return pad(repo, repoWidth) + '  ' + cells.join('  ')
+  })
+  return [header, ...rows].join('\n')
 }
