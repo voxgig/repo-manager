@@ -318,6 +318,16 @@
       {
         "pat": [
           {
+            "aim": "forge"
+          },
+          {
+            "get": "rate"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
             "aim": "inbox"
           },
           {

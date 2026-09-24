@@ -148,6 +148,25 @@ module.exports = function forge_github(this: any, options: any) {
     return { ok: true, logins: list.map((m: any) => m.login) }
   })
 
+  // doctor's credential-validity + rate-limit-headroom check (SPEC §17).
+  // rate_limit has no id at all, and seneca-entity's own load$() shorthand
+  // requires an identifying value - called with none, it resolves to null
+  // entirely client-side without ever reaching this provider, verified by
+  // tracing it (load$() / load$(null) / load$({}) all short-circuit the
+  // same way). The raw entity message doesn't have that requirement.
+  seneca.message('aim:forge,get:rate,forge:github', async function (this: any, msg: any) {
+    try {
+      const res = await this.post({ role: 'entity', cmd: 'load', zone: 'provider', base: 'github', name: 'rate_limit', q: {} })
+      if (!res) {
+        return { ok: false, why: 'credential rejected' }
+      }
+      return { ok: true, limit: res.limit, remaining: res.remaining, reset: res.reset, used: res.used }
+    }
+    catch (err: any) {
+      return { ok: false, why: 401 === err.status ? 'credential rejected' : (err.message || 'forge call failed') }
+    }
+  })
+
   return { name: 'forge_github' }
 }
 

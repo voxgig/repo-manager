@@ -2,6 +2,7 @@
 // Boots the same services as the local runner, no web gateway or REPL.
 
 import Path from 'node:path'
+import { execSync } from 'node:child_process'
 
 import Seneca from 'seneca'
 import { Local } from '@voxgig/system'
@@ -85,12 +86,16 @@ async function run() {
   else if ('lint' === cmd) {
     cmd_lint()
   }
+  else if ('doctor' === cmd) {
+    await cmd_doctor(seneca, rest)
+  }
   else {
     console.log('Usage: inbox sync --repos owner/name,owner/name --user login')
     console.log('       inbox list')
     console.log('       inbox dismiss <id>')
     console.log('       inbox status --repos owner/name,owner/name [--format table|json|md]')
     console.log('       inbox lint')
+    console.log('       inbox doctor [--tail]')
     process.exitCode = 1
   }
 
@@ -236,7 +241,9 @@ function statusTable(policies: any[], repoIds: string[], cellAt: any) {
 // before a real run hits it. Exit code 3 (config/auth/IO failure, §17's
 // own table) on any problem, not 1 - lint isn't status, finding a problem
 // here isn't "drift found".
-function cmd_lint() {
+// Shared by lint and doctor - doctor's own "validates config and policies"
+// check (§17) is exactly this, not a second implementation of it.
+function collectLintProblems(): { problems: string[], policyCount: number } {
   const problems: string[] = []
 
   const repos = process.env.REPO_MANAGER_REPOS
@@ -301,8 +308,14 @@ function cmd_lint() {
     }
   }
 
+  return { problems, policyCount: SEED_POLICIES.length }
+}
+
+function cmd_lint() {
+  const { problems, policyCount } = collectLintProblems()
+
   if (0 === problems.length) {
-    console.log(`lint: ok - ${SEED_POLICIES.length} polic${1 === SEED_POLICIES.length ? 'y' : 'ies'}, config valid`)
+    console.log(`lint: ok - ${policyCount} polic${1 === policyCount ? 'y' : 'ies'}, config valid`)
     return
   }
 
@@ -311,4 +324,64 @@ function cmd_lint() {
     console.log(`  - ${p}`)
   }
   process.exitCode = 3
+}
+
+
+// SPEC §17: "the first command anyone runs" - verifies credentials, rate-
+// limit headroom, config/policies (via lint's own checks), and git. Real
+// scope, not the full spec: `--tail` and per-connection identity both need
+// @seneca/station, which doesn't exist yet (checked - no npm package, no
+// local checkout, an empty placeholder repo only) - printed as such rather
+// than faked. When station exists, only how the credential gets resolved
+// changes; these same checks stay.
+async function cmd_doctor(seneca: any, args: string[]) {
+  if (args.includes('--tail')) {
+    console.log('doctor --tail: not available - requires @seneca/station (not built yet)')
+    process.exitCode = 3
+    return
+  }
+
+  let ok = true
+
+  try {
+    execSync('git --version', { stdio: 'ignore' })
+    console.log('✓ git available')
+  }
+  catch {
+    console.log('✗ git not found on PATH')
+    ok = false
+  }
+
+  const forge = process.env.REPO_MANAGER_FORGE || 'github'
+  const rate = await seneca.post({ aim: 'forge', get: 'rate', forge })
+  if (!rate.ok) {
+    console.log(`✗ ${forge} credential: ${rate.why}`)
+    ok = false
+  }
+  else {
+    console.log(`✓ ${forge} credential valid`)
+    const pct = Math.round(100 * rate.remaining / rate.limit)
+    console.log(`  rate limit: ${rate.remaining}/${rate.limit} remaining (${pct}%), resets ${new Date(rate.reset * 1000).toLocaleTimeString()}`)
+    if (pct < 10) {
+      console.log('  ⚠ rate limit headroom below 10%')
+    }
+  }
+
+  const { problems, policyCount } = collectLintProblems()
+  if (0 === problems.length) {
+    console.log(`✓ config valid (${policyCount} polic${1 === policyCount ? 'y' : 'ies'})`)
+  }
+  else {
+    console.log(`✗ config: ${problems.length} problem${1 === problems.length ? '' : 's'}`)
+    for (const p of problems) {
+      console.log(`  - ${p}`)
+    }
+    ok = false
+  }
+
+  console.log('· --tail not available - requires @seneca/station (not built yet)')
+
+  if (!ok) {
+    process.exitCode = 3
+  }
 }

@@ -43,6 +43,10 @@
   # that's GitHub's own visibility rule, not a bug; the caller surfaces it.
   { pat: [{aim: forge}, {get: members}] }
 
+  # doctor's credential-validity + rate-limit-headroom check (SPEC §17) -
+  # CLI-only, never reachable from the browser.
+  { pat: [{aim: forge}, {get: rate}] }
+
 
   # ---- inbox — the one semantic intent for this stage --------------------
   # service is what translates it into forge messages.

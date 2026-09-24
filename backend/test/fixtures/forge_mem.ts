@@ -372,5 +372,9 @@ module.exports = function forge_mem(this: any) {
     return { ok: true, logins: members[msg.org] || [] }
   })
 
+  seneca.message('aim:forge,get:rate,forge:mem', async function () {
+    return { ok: true, limit: 5000, remaining: 4987, reset: Math.floor(Date.now() / 1000) + 3600, used: 13 }
+  })
+
   return { name: 'forge_mem' }
 }

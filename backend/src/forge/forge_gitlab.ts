@@ -129,5 +129,9 @@ module.exports = function forge_gitlab(this: any) {
     return { ok: true, logins: [] }
   })
 
+  seneca.message('aim:forge,get:rate,forge:gitlab', async function () {
+    return { ok: true, limit: 2000, remaining: 1994, reset: Math.floor(Date.now() / 1000) + 3600, used: 6 }
+  })
+
   return { name: 'forge_gitlab' }
 }
