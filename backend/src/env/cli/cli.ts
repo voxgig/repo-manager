@@ -33,6 +33,7 @@ async function run() {
       GITHUB_TOKEN: valid.Skip(String),
       REPO_MANAGER_REPOS: valid.Skip(String),
       REPO_MANAGER_GITHUB_USER: valid.Skip(String),
+      REPO_MANAGER_FORGE: valid.Skip(String),
     }),
     file: Path.join(__dirname, '..', '..', '..', 'env.local.js') + ';?',
   })
@@ -45,9 +46,19 @@ async function run() {
     }
   }
 
-  seneca.use(require('../../forge/forge_github'), {
-    provider: { sdk: { headers: { Authorization: 'Bearer ' + (process.env.GITHUB_TOKEN || '') } } },
-  })
+  // Same three-way choice as web.ts: =mem/=gitlab need no token, useful for
+  // trying every CLI command (including status) without real credentials.
+  if ('mem' === process.env.REPO_MANAGER_FORGE) {
+    seneca.use(require('../../../dist-test/fixtures/forge_mem'))
+  }
+  else if ('gitlab' === process.env.REPO_MANAGER_FORGE) {
+    seneca.use(require('../../forge/forge_gitlab'))
+  }
+  else {
+    seneca.use(require('../../forge/forge_github'), {
+      provider: { sdk: { headers: { Authorization: 'Bearer ' + (process.env.GITHUB_TOKEN || '') } } },
+    })
+  }
 
   seneca.use(Local, {
     srv: {
@@ -71,11 +82,15 @@ async function run() {
   else if ('status' === cmd) {
     await cmd_status(seneca, rest)
   }
+  else if ('lint' === cmd) {
+    cmd_lint()
+  }
   else {
     console.log('Usage: inbox sync --repos owner/name,owner/name --user login')
     console.log('       inbox list')
     console.log('       inbox dismiss <id>')
     console.log('       inbox status --repos owner/name,owner/name [--format table|json|md]')
+    console.log('       inbox lint')
     process.exitCode = 1
   }
 
@@ -213,4 +228,87 @@ function statusTable(policies: any[], repoIds: string[], cellAt: any) {
     return pad(repo, repoWidth) + '  ' + cells.join('  ')
   })
   return [header, ...rows].join('\n')
+}
+
+
+// SPEC §17: "validate config + policies, offline" - no forge call, no
+// network, just checks what's already configured is actually usable
+// before a real run hits it. Exit code 3 (config/auth/IO failure, §17's
+// own table) on any problem, not 1 - lint isn't status, finding a problem
+// here isn't "drift found".
+function cmd_lint() {
+  const problems: string[] = []
+
+  const repos = process.env.REPO_MANAGER_REPOS
+  if (!repos) {
+    problems.push('REPO_MANAGER_REPOS is not set')
+  }
+  else {
+    for (const repo_id of repos.split(',')) {
+      if (!/^[^/]+\/[^/]+$/.test(repo_id.trim())) {
+        problems.push(`repo_id "${repo_id}" is not "owner/repo" shaped`)
+      }
+    }
+  }
+  if (!process.env.REPO_MANAGER_GITHUB_USER) {
+    problems.push('REPO_MANAGER_GITHUB_USER is not set')
+  }
+
+  const { SEED_POLICIES } = require('../../srv/inbox/check_policy')
+  const seenIds = new Set<string>()
+  for (const policy of SEED_POLICIES) {
+    if (!policy.id) {
+      problems.push('a policy is missing an id')
+      continue
+    }
+    if (seenIds.has(policy.id)) {
+      problems.push(`duplicate policy id "${policy.id}"`)
+    }
+    seenIds.add(policy.id)
+
+    if (!policy.description) {
+      problems.push(`policy "${policy.id}" is missing a description`)
+    }
+    if (policy.applies && 'string' !== typeof policy.applies.hasFile) {
+      problems.push(`policy "${policy.id}"'s applies.hasFile must be a string`)
+    }
+    if (!Array.isArray(policy.check) || 0 === policy.check.length) {
+      problems.push(`policy "${policy.id}" has no checks`)
+      continue
+    }
+    for (const check of policy.check) {
+      if (!check.path) {
+        problems.push(`policy "${policy.id}" has a check with no path`)
+      }
+      if ('file.exists' === check.action) {
+        continue
+      }
+      if ('file.matches' === check.action) {
+        if (!check.contains && !check.regex) {
+          problems.push(`policy "${policy.id}"'s file.matches check on "${check.path}" has neither contains nor regex`)
+        }
+        if (check.regex) {
+          try {
+            new RegExp(check.regex)
+          }
+          catch (e: any) {
+            problems.push(`policy "${policy.id}"'s regex on "${check.path}" is invalid: ${e.message}`)
+          }
+        }
+        continue
+      }
+      problems.push(`policy "${policy.id}" has an unknown check action "${check.action}"`)
+    }
+  }
+
+  if (0 === problems.length) {
+    console.log(`lint: ok - ${SEED_POLICIES.length} polic${1 === SEED_POLICIES.length ? 'y' : 'ies'}, config valid`)
+    return
+  }
+
+  console.log(`lint: ${problems.length} problem${1 === problems.length ? '' : 's'}`)
+  for (const p of problems) {
+    console.log(`  - ${p}`)
+  }
+  process.exitCode = 3
 }
