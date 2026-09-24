@@ -151,6 +151,10 @@ class VgInbox extends HTMLElement {
     this.driftPolicies = []
     this.driftCells = []
     this.driftFocus = { row: 0, col: 0 }
+    // Fleet sidebar's external-contributor filter - which org is focused
+    // (view 'external' is parameterized by it, unlike the fixed VIEWS).
+    this.externalOrg = null
+    this.externalMemberCount = 0
     // Sidebar badge counts, one per real view - kept separate from
     // this.items (the ACTIVE view's rows) so every nav entry can show a
     // real count, not just the one currently open.
@@ -206,6 +210,11 @@ class VgInbox extends HTMLElement {
       this.driftFocus = { row: 0, col: 0 }
       this.items = []
     }
+    else if ('external' === this.view) {
+      const res = await Api.listExternalPulls(this.externalOrg)
+      this.items = res.prs
+      this.externalMemberCount = res.member_count
+    }
     else {
       this.items = await Api.listInbox(this.viewState())
       // now < soon < later, then most recently updated first within a tier.
@@ -257,7 +266,15 @@ class VgInbox extends HTMLElement {
   }
 
   itemActionsAvailable() {
-    return VIEWS[this.view].itemActions
+    // 'external' isn't a VIEWS key (it's parameterized by org, not fixed) -
+    // treat any view VIEWS doesn't know as read-only, same as it is.
+    return !!(VIEWS[this.view] && VIEWS[this.view].itemActions)
+  }
+
+  // 'external' has no fixed title (VIEWS doesn't carry it) - everywhere
+  // else uses VIEWS[this.view].title.
+  currentTitle() {
+    return 'external' === this.view ? `External PRs · ${this.externalOrg}` : VIEWS[this.view].title
   }
 
   // Guards every item-intent entry point - a raw Pull requests row has no
@@ -305,6 +322,21 @@ class VgInbox extends HTMLElement {
     await this.load()
   }
 
+  // Fleet sidebar org click - same shape as switchView, but 'external' is
+  // parameterized (which org), so re-clicking the same org is the no-op,
+  // not any switch to 'external'.
+  async switchToExternalOrg(org) {
+    if ('external' === this.view && this.externalOrg === org) {
+      return
+    }
+    this.view = 'external'
+    this.externalOrg = org
+    this.focusIndex = 0
+    this.searchQuery = ''
+    this.detail = null
+    await this.load()
+  }
+
   // Local search (SPEC §13.3): the full set is already in memory, so
   // filtering is just an array filter - no request.
   visibleItems() {
@@ -331,6 +363,9 @@ class VgInbox extends HTMLElement {
       { id: 'view-campaigns', label: 'view: campaigns', run: () => this.switchView('campaigns') },
       { id: 'view-pulls', label: 'view: pull requests', run: () => this.switchView('pulls') },
       { id: 'view-drift', label: 'view: drift matrix', run: () => this.switchView('drift') },
+      ...FLEET_ORGS.map((o) => ({
+        id: `view-external-${o}`, label: `view: external PRs - ${o}`, run: () => this.switchToExternalOrg(o),
+      })),
       { id: 'open', label: 'open detail (Enter)', run: () => this.openDetail() },
       { id: 'open-external', label: 'open on forge (o)', run: () => this.openExternal() },
       { id: 'done', label: 'done (e)', run: () => this.dismissFocused() },
@@ -799,13 +834,19 @@ class VgInbox extends HTMLElement {
           </div>`).join('')}
         ${INERT_SECTIONS.map((s) => `<div class="vg-nav-item vg-nav-inert">${esc(s)}</div>`).join('')}
         <div class="vg-nav-group-title">Fleet</div>
-        ${FLEET_ORGS.map((o) => `<div class="vg-nav-item vg-nav-inert">${esc(o)}</div>`).join('')}
+        ${FLEET_ORGS.map((o) => `
+          <div class="vg-nav-item${'external' === this.view && this.externalOrg === o ? ' vg-nav-active' : ''}" data-org="${esc(o)}" title="external PRs">
+            ${esc(o)}
+          </div>`).join('')}
       </nav>`
   }
 
   wireNav() {
     for (const nav of this.querySelectorAll('.vg-nav-item[data-view]')) {
       nav.onclick = () => this.switchView(nav.dataset.view)
+    }
+    for (const nav of this.querySelectorAll('.vg-nav-item[data-org]')) {
+      nav.onclick = () => this.switchToExternalOrg(nav.dataset.org)
     }
   }
 
@@ -842,7 +883,7 @@ class VgInbox extends HTMLElement {
   renderListPage() {
     const items = this.visibleItems()
     const focused = items[this.focusIndex]
-    const viewTitle = VIEWS[this.view].title
+    const viewTitle = this.currentTitle()
     const showActions = this.itemActionsAvailable()
 
     return `
@@ -862,6 +903,9 @@ class VgInbox extends HTMLElement {
                   : `<div class="vg-empty">${this.searchQuery ? 'no matches' : viewTitle.toLowerCase() + ' is empty'}</div>`}
                 ${items.length && this.itemActionsAvailable()
                   ? '<div class="vg-inbox-footnote">items vanish on their own when the condition clears - merged PRs never need a keystroke</div>'
+                  : ''}
+                ${'external' === this.view && 0 === this.externalMemberCount
+                  ? `<div class="vg-inbox-footnote">couldn't see ${esc(this.externalOrg)}'s member list (private membership, and we're not a member ourselves) - every author here is shown as external, but that may just mean membership is invisible to us, not that nobody here belongs to the org</div>`
                   : ''}
               </div>
               <aside class="vg-inbox-focus">

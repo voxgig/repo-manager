@@ -192,6 +192,18 @@ module.exports = function forge_mem(this: any) {
     'a1': { id: 'a1', repo_id: 'r1', severity: 'high', dismissed: false },
   }
 
+  // Fleet sidebar's external-contributor filter. maintainer1 is a member
+  // everywhere (it's the sync user); lena-r is senecajs's one real
+  // maintainer among the demo authors, so senecajs's filter comes back
+  // empty - a real "everyone here is internal" case, not every org showing
+  // the same "everyone's external" result.
+  const members: any = {
+    senecajs: ['maintainer1', 'lena-r'],
+    tabnas: ['maintainer1'],
+    voxgig: ['maintainer1'],
+    'voxgig-sdk': ['maintainer1'],
+  }
+
   const checks: any = {
     'c1': { id: 'c1', repo_id: 'r1', pr_id: 'p1', name: 'ci', status: 'success' },
   }
@@ -354,6 +366,10 @@ module.exports = function forge_mem(this: any) {
     const repoFiles = files[msg.repo_id]
     const content = repoFiles && repoFiles[msg.path]
     return undefined === content ? { ok: true, exists: false } : { ok: true, exists: true, content }
+  })
+
+  seneca.message('aim:forge,get:members,forge:mem', async function (msg: any) {
+    return { ok: true, logins: members[msg.org] || [] }
   })
 
   return { name: 'forge_mem' }

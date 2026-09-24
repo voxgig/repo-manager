@@ -99,6 +99,15 @@ async function listIssues() {
   return (r && r.ok && r.issues) || []
 }
 
+// The Fleet sidebar's external-contributor filter (click an org) - real
+// org membership, not a guess. member_count === 0 means GitHub couldn't
+// show us the org's members (concealed + we aren't in it), not that every
+// author is external - the UI surfaces that distinction.
+async function listExternalPulls(org) {
+  const r = await bus.post({ aim: 'web', on: 'inbox', list: 'external', org })
+  return r && r.ok ? { prs: r.prs || [], member_count: r.member_count || 0 } : { prs: [], member_count: 0 }
+}
+
 // The drift matrix (SPEC §14.3): every (repo, policy) cell, not just the
 // non-compliant ones list:item already surfaces as work items.
 async function listDrift() {
@@ -164,6 +173,7 @@ export {
   listPulls,
   listIssues,
   listDrift,
+  listExternalPulls,
   loadPr,
   approveItem,
   mergeItem,

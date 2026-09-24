@@ -137,6 +137,17 @@ module.exports = function forge_github(this: any, options: any) {
     }
   })
 
+  // The fleet's external-contributor filter - only public org members are
+  // visible unless the authenticated user is itself a member of the org
+  // (GitHub's own rule, not ours); an org with fully concealed membership
+  // and no membership of our own reads as zero members, not zero
+  // contributors - the caller surfaces that distinction, this action just
+  // reports what GitHub actually returned.
+  seneca.message('aim:forge,get:members,forge:github', async function (this: any, msg: any) {
+    const list = await this.entity('provider/github/member').list$({ org: msg.org })
+    return { ok: true, logins: list.map((m: any) => m.login) }
+  })
+
   return { name: 'forge_github' }
 }
 

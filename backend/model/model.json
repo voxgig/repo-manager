@@ -308,6 +308,16 @@
       {
         "pat": [
           {
+            "aim": "forge"
+          },
+          {
+            "get": "members"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
             "aim": "inbox"
           },
           {
@@ -382,6 +392,16 @@
           },
           {
             "list": "drift"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
+            "list": "external"
           }
         ]
       },
@@ -648,6 +668,20 @@
           },
           {
             "list": "drift"
+          }
+        ]
+      },
+      {
+        "file": "./web_list_external",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "inbox"
+          },
+          {
+            "list": "external"
           }
         ]
       },

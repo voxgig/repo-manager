@@ -37,6 +37,12 @@
   # reads only, decoded to plain text regardless of forge wire encoding.
   { pat: [{aim: forge}, {get: file}] }
 
+  # The fleet's external-contributor filter (Fleet sidebar, click an org) -
+  # real org membership, not a guess. May come back empty for an org whose
+  # membership is fully concealed and we aren't a member of ourselves -
+  # that's GitHub's own visibility rule, not a bug; the caller surfaces it.
+  { pat: [{aim: forge}, {get: members}] }
+
 
   # ---- inbox — the one semantic intent for this stage --------------------
   # service is what translates it into forge messages.
@@ -68,6 +74,11 @@
   # already derives. Read-only, no apply (Stage 3, §19.6).
   { pat: [{aim: inbox}, {list: drift}] }
 
+  # External-contributor filter (Fleet sidebar) - PRs authored by someone
+  # outside the clicked org's real GitHub membership. Same raw-browse shape
+  # as list:pr, just pre-filtered; no rpm/item behind it either.
+  { pat: [{aim: inbox}, {list: external}] }
+
   # The detail view for either kind of row above (item-backed or raw
   # browse) - PR-only for now, see the loose-ends memory note.
   { pat: [{aim: inbox}, {load: pr}] }
@@ -97,6 +108,7 @@
   { pat: [{aim: web}, {on: inbox}, {list: pr}], file: './web_list_pr' }
   { pat: [{aim: web}, {on: inbox}, {list: issue}], file: './web_list_issue' }
   { pat: [{aim: web}, {on: inbox}, {list: drift}], file: './web_list_drift' }
+  { pat: [{aim: web}, {on: inbox}, {list: external}], file: './web_list_external' }
   { pat: [{aim: web}, {on: inbox}, {load: pr}], file: './web_load_pr' }
 
 ]

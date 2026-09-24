@@ -940,4 +940,66 @@ describe('inbox', () => {
     await seneca.close()
   })
 
+
+  // The Fleet sidebar's external-contributor filter - real org membership
+  // (forge_mem's own `members` map), not a guess.
+
+  test('list-external-excludes-a-pr-authored-by-a-real-org-member', async () => {
+    const seneca = await makeSeneca()
+
+    // voxgig/sdkgen's one PR is authored by maintainer1, who forge_mem
+    // lists as a voxgig member.
+    const res = await seneca.post('aim:inbox,list:external', {
+      org: 'voxgig', forge: 'mem', repo_ids: ['voxgig/sdkgen'],
+    })
+    expect(res.ok).true()
+    expect(res.prs.length).equal(0)
+
+    await seneca.close()
+  })
+
+  test('list-external-includes-prs-from-non-member-authors', async () => {
+    const seneca = await makeSeneca()
+
+    // voxgig/model (dev8) and voxgig/station (contributor9) - neither is
+    // in forge_mem's voxgig member list.
+    const res = await seneca.post('aim:inbox,list:external', {
+      org: 'voxgig', forge: 'mem', repo_ids: ['voxgig/model', 'voxgig/station'],
+    })
+    expect(res.ok).true()
+    expect(res.prs.map((p: any) => p.actor).sort()).equal(['contributor9', 'dev8'])
+
+    await seneca.close()
+  })
+
+  test('list-external-reports-member-count-and-can-come-back-empty', async () => {
+    const seneca = await makeSeneca()
+
+    // senecajs/seneca-redis-store's one PR is authored by lena-r, who
+    // forge_mem lists as a real senecajs member - a genuine "nobody here
+    // is external" result, not zero because membership was invisible.
+    const res = await seneca.post('aim:inbox,list:external', {
+      org: 'senecajs', forge: 'mem', repo_ids: ['senecajs/seneca-redis-store'],
+    })
+    expect(res.ok).true()
+    expect(res.member_count).equal(2)
+    expect(res.prs.length).equal(0)
+
+    await seneca.close()
+  })
+
+  test('list-external-only-considers-repos-under-the-given-org', async () => {
+    const seneca = await makeSeneca()
+
+    // voxgig-sdk/stripe-sdk starts with "voxgig" but is a different org -
+    // org:'voxgig' must not pull in its PRs.
+    const res = await seneca.post('aim:inbox,list:external', {
+      org: 'voxgig', forge: 'mem', repo_ids: ['voxgig/model', 'voxgig-sdk/stripe-sdk'],
+    })
+    expect(res.ok).true()
+    expect(res.prs.every((p: any) => p.repo.startsWith('voxgig/'))).true()
+
+    await seneca.close()
+  })
+
 })
