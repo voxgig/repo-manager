@@ -10,6 +10,21 @@ inbox: {
 }
 
 
+# Login/logout + session check, backed by @seneca/user. No signup page -
+# the one admin account is seeded from ADMIN_EMAIL/ADMIN_PASSWORD at boot
+# (matches a single-operator repo fleet, not a public product); see
+# src/env/web/web.ts.
+auth: {
+  user: {
+    required: false
+  }
+  in: {
+    aim: auth: {}
+    aim: web: on: auth: '$': allow: true
+  }
+}
+
+
 ## Example service definition. Uncomment to add the example 'thing'
 ## service (see also msg.aon and src/srv/).
 

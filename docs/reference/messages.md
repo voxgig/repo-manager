@@ -13,10 +13,24 @@ flowchart LR
   client([Clients / SPA])
   gateway{{gateway}}
   client -->|aim:* messages| gateway
+  auth[srv auth]
+  gateway -->|aim:auth| auth
+  gateway -->|aim:web| auth
   inbox[srv inbox]
   gateway -->|aim:inbox| inbox
   gateway -->|aim:web| inbox
 ```
+
+## Service: auth
+
+| Message | Action file |
+|---|---|
+| `aim:auth,signin:user` | `src/srv/auth/signin_user.ts` |
+| `aim:auth,signout:user` | `src/srv/auth/signout_user.ts` |
+| `aim:auth,load:auth` | `src/srv/auth/load_auth.ts` |
+| `aim:web,on:auth,signin:user` | `src/srv/auth/web_signin_user.ts` |
+| `aim:web,on:auth,signout:user` | `src/srv/auth/web_signout_user.ts` |
+| `aim:web,on:auth,load:auth` | `src/srv/auth/web_load_auth.ts` |
 
 ## Service: inbox
 

@@ -6,6 +6,9 @@
 import Seneca from 'seneca'
 import { Local } from '@voxgig/system'
 
+// require(), not import - see backend/src/env/shared/basic.ts's own comment.
+const SenecaRepl = require('@seneca/repl')
+
 import { basic, base } from '../shared/basic'
 
 import Pkg from '../../../package.json'
@@ -34,7 +37,7 @@ async function run() {
   //   npx seneca-repl telnet://localhost:<port.repl>
   // Disable with REPL=false; override the port with REPL_PORT.
   if ('false' !== process.env.REPL) {
-    seneca.use('repl', {
+    seneca.use(SenecaRepl, {
       port: parseInt(process.env.REPL_PORT || '', 10) ||
         (Model as any).main.conf.port.repl,
     })

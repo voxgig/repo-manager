@@ -1,11 +1,19 @@
-// Top-level entry. Stage 1 runs unauthenticated (no login yet - see
-// backend/src/env/web/web.ts) straight into the inbox; the generic
-// auth/shell scaffold (auth.js, shell.js, public.js) is unwired for now,
-// not deleted - signin-gating is deferred work, not forgotten.
+// Top-level entry: gates between the login form (cmp/auth.js) and the
+// real app (cmp/inbox.js) on session state. The generic entity-admin
+// shell/public/settings scaffold is unwired - see those files' own
+// comments; this project's real UI is vg-inbox.
+
+import { bus, onEvent } from '../bus.js'
 
 class VgApp extends HTMLElement {
-  connectedCallback() {
-    this.innerHTML = '<vg-inbox></vg-inbox>'
+  async connectedCallback() {
+    onEvent('auth', ({ user }) => this.renderFor(user))
+    const state = await bus.post('cmp:auth,load:state')
+    this.renderFor(state.user)
+  }
+
+  renderFor(user) {
+    this.innerHTML = user ? '<vg-inbox></vg-inbox>' : '<vg-auth></vg-auth>'
   }
 }
 

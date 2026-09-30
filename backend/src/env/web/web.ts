@@ -4,15 +4,25 @@
 // seneca gateway endpoint (/seneca) that the browser-side Seneca bus
 // posts messages to (seneca-browser fetch transport).
 //
-// No login yet - Stage 1's CLI/tests also run unauthenticated (see
-// src/forge/forge_github.ts). Signin-gating is deferred, not forgotten.
+// Login (srv/auth, @seneca/user + @seneca/gateway-auth's express_cookie
+// spec) sets/reads the session cookie on every request, but nothing is
+// gated behind it yet (user.require: false) - the inbox/drift views stay
+// reachable unauthenticated, same as before. Gating them is a separate,
+// later step once there's an actual reason to lock the app down.
 
 import Path from 'node:path'
 
 import Express from 'express'
+import CookieParser from 'cookie-parser'
 
 import Seneca from 'seneca'
 import { Local, context, devtools } from '@voxgig/system'
+
+// require(), not import - see backend/src/env/shared/basic.ts's own comment.
+const SenecaEnv = require('@seneca/env')
+const SenecaGateway = require('@seneca/gateway')
+const SenecaGatewayExpress = require('@seneca/gateway-express')
+const SenecaGatewayAuth = require('@seneca/gateway-auth')
 
 import { basic, base } from '../shared/basic'
 
@@ -43,12 +53,14 @@ async function run() {
   // default. Backfilling process.env (rather than switching every reader to
   // seneca.context.SenecaEnv.var) keeps every existing process.env.X call
   // site - here and in srv/inbox/web_*.ts - working unchanged.
-  seneca.use('env', {
+  seneca.use(SenecaEnv, {
     var: (valid: any) => ({
       GITHUB_TOKEN: valid.Skip(String),
       REPO_MANAGER_REPOS: valid.Skip(String),
       REPO_MANAGER_GITHUB_USER: valid.Skip(String),
       REPO_MANAGER_FORGE: valid.Skip(String),
+      ADMIN_EMAIL: valid.Skip(String),
+      ADMIN_PASSWORD: valid.Skip(String),
     }),
     file: Path.join(__dirname, '..', '..', '..', 'env.local.js') + ';?',
   })
@@ -64,14 +76,47 @@ async function run() {
     }
   }
 
+  // Seed the one admin login if ADMIN_EMAIL/ADMIN_PASSWORD are set and no
+  // such user exists yet. Mem-store (the default here - see basic.ts) is
+  // per-process and wiped on restart, so this can't be a one-time script
+  // the way a real persistent store would let it be; it has to run at
+  // every boot instead, and no-op once the account already exists.
+  const { ADMIN_EMAIL, ADMIN_PASSWORD } = seneca.context.SenecaEnv.var
+  if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+    const existing = await seneca.entity('sys/user').list$({ email: ADMIN_EMAIL })
+    if (0 === existing.length) {
+      await seneca.post('sys:user,register:user', { email: ADMIN_EMAIL, pass: ADMIN_PASSWORD })
+      console.log('repo-manager-web: seeded admin user', ADMIN_EMAIL)
+    }
+  }
+
   seneca
-    .use('gateway', {
+    .use(SenecaGateway, {
       // THE BROWSER SURFACE. Only aim:web is reachable from a browser:
       // every message the SPA may send is declared in the model as an
       // aim:web PROXY that forwards to the real service message.
       allow: { 'aim:web': true },
     })
-    .use('gateway-express', {})
+    .use(SenecaGatewayExpress, {
+      // The cookie-WRITING config (res.cookie/clearCookie) - a separate
+      // option from gateway-auth's own below, which only READS the
+      // cookie back. Same name in both, or gateway-express keeps writing
+      // its own 'seneca-auth' default while gateway-auth looks for a
+      // cookie that's never actually set under that name.
+      auth: { token: { name: 'repo-manager-auth' } },
+    })
+    .use(SenecaGatewayAuth, {
+      spec: {
+        express_cookie: {
+          active: true,
+          token: { name: 'repo-manager-auth' },
+          // require: false - resolve the principal from the cookie when
+          // one exists (web_load_auth.ts reads it), but don't block
+          // requests without one; see this file's own header comment.
+          user: { auth: true, require: false },
+        },
+      },
+    })
 
   // REPO_MANAGER_FORGE=mem runs against the same in-memory fixture data the
   // test suite uses (test/fixtures/forge_mem.ts) instead of real GitHub -
@@ -108,6 +153,10 @@ async function run() {
 
   app
     .use(Express.json())
+    // Before the /seneca route, not after - gateway-auth's express_cookie
+    // hook reads req.cookies (set by this middleware) while handling the
+    // gateway-express request.
+    .use(CookieParser())
     .post('/seneca', seneca.export('gateway-express/handler'))
     // Bespoke, read-only REST endpoint for the MCP/SDK path (step 9) - calls
     // the inbox concern directly, NOT the generic aim:ent gatekeeper we

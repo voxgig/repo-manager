@@ -7,6 +7,9 @@ import { execSync } from 'node:child_process'
 import Seneca from 'seneca'
 import { Local } from '@voxgig/system'
 
+// require(), not import - see backend/src/env/shared/basic.ts's own comment.
+const SenecaEnv = require('@seneca/env')
+
 import { basic, base } from '../shared/basic'
 
 import Model from '../../../model/model.json'
@@ -29,7 +32,7 @@ async function run() {
 
   // See src/env/web/web.ts for why: env.local.js backfills process.env so
   // GITHUB_TOKEN doesn't need re-exporting every session.
-  seneca.use('env', {
+  seneca.use(SenecaEnv, {
     var: (valid: any) => ({
       GITHUB_TOKEN: valid.Skip(String),
       REPO_MANAGER_REPOS: valid.Skip(String),

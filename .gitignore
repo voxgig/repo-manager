@@ -15,3 +15,6 @@ dist-test
 # local @seneca/env defaults (backend/env.local.js) - never committed, see
 # backend/env.local.example.js for the shape.
 **/env.local.js
+
+# wrangler dev's local state (Durable Object storage, Miniflare cache).
+**/.wrangler/

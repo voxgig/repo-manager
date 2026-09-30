@@ -8,6 +8,7 @@
 
 import * as Api from '../api.js'
 import * as Theme from '../theme.js'
+import { bus } from '../bus.js'
 
 const KIND_LABEL = {
   'pr.review_requested': 'review',
@@ -127,6 +128,10 @@ const KEY_ACTIONS = {
 
 class VgInbox extends HTMLElement {
   async connectedCallback() {
+    // Already resolved by the time vg-app mounts this (it only does so
+    // once cmp:auth,load:state has a signed-in user) - a plain get is
+    // enough, no need to re-check the backend.
+    this.user = (await bus.post('cmp:auth,get:state')).user
     this.items = []
     this.view = 'inbox'
     this.focusIndex = 0
@@ -862,7 +867,7 @@ class VgInbox extends HTMLElement {
         <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
         <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
         <button class="vg-theme-btn" id="vg-theme-toggle" title="toggle theme">${'dark' === Theme.current() ? '☀' : '🌙'}</button>
-        <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
+        <span class="vg-inbox-avatar" id="vg-signout" title="${this.user ? 'Sign out (' + esc(this.user.email) + ')' : ''}">${this.user ? esc(this.user.email[0].toUpperCase()) : '·'}</span>
       </header>`
   }
 
@@ -877,6 +882,10 @@ class VgInbox extends HTMLElement {
         Theme.nextMode()
         this.render()
       }
+    }
+    const signoutBtn = this.querySelector('#vg-signout')
+    if (signoutBtn && this.user) {
+      signoutBtn.onclick = () => bus.post('cmp:auth,signout:user')
     }
   }
 

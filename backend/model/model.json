@@ -708,6 +708,78 @@
             "load": "pr"
           }
         ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "auth"
+          },
+          {
+            "signin": "user"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "auth"
+          },
+          {
+            "signout": "user"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "auth"
+          },
+          {
+            "load": "auth"
+          }
+        ]
+      },
+      {
+        "file": "./web_signin_user",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "auth"
+          },
+          {
+            "signin": "user"
+          }
+        ]
+      },
+      {
+        "file": "./web_signout_user",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "auth"
+          },
+          {
+            "signout": "user"
+          }
+        ]
+      },
+      {
+        "file": "./web_load_auth",
+        "pat": [
+          {
+            "aim": "web"
+          },
+          {
+            "on": "auth"
+          },
+          {
+            "load": "auth"
+          }
+        ]
       }
     ],
     "shape": {
@@ -723,6 +795,57 @@
       }
     },
     "srv": {
+      "auth": {
+        "api": {
+          "web": {
+            "active": true,
+            "cors": {
+              "active": false
+            },
+            "method": "POST",
+            "path": {
+              "area": "",
+              "prefix": "/api/",
+              "suffix": ""
+            }
+          }
+        },
+        "deps": {},
+        "env": {
+          "lambda": {
+            "active": false,
+            "handler": {
+              "path": {
+                "prefix": "dist/handler/lambda/",
+                "suffix": ".handler"
+              }
+            },
+            "kind": "standard",
+            "timeout": 30
+          }
+        },
+        "in": {
+          "aim": {
+            "auth": {},
+            "web": {
+              "on": {
+                "auth": {
+                  "$": {
+                    "allow": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "options": {
+          "debug": true
+        },
+        "out": {},
+        "user": {
+          "required": false
+        }
+      },
       "inbox": {
         "api": {
           "web": {

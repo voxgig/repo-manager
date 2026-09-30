@@ -1,14 +1,22 @@
 // Real GitHub forge, specializing the same aim:forge,* contract forge:mem
 // answers from fixtures. repo_id is the GitHub "owner/repo" full name.
 
+// require(), not import - see basic.ts's own comment on this same fix.
+const SenecaPromisify = require('seneca-promisify')
+const SenecaEntity = require('seneca-entity')
+const SenecaProvider = require('@seneca/provider')
+const SenecaGithubProvider = require('@seneca/github-provider')
+
 module.exports = function forge_github(this: any, options: any) {
   const seneca = this
 
+  // Direct references, not string names - see basic.ts's own comment on
+  // this same fix.
   seneca
-    .use('promisify')
-    .use('entity')
-    .use('provider')
-    .use('github-provider', options.provider || {})
+    .use(SenecaPromisify)
+    .use(SenecaEntity)
+    .use(SenecaProvider)
+    .use(SenecaGithubProvider, options.provider || {})
 
   seneca.message('aim:forge,list:pr,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')

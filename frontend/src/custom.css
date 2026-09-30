@@ -239,3 +239,20 @@ kbd { background: var(--vg-surface); border: 1px solid var(--vg-border); border-
 .vg-drift-status.vg-drift-bad { color: #f8b833; }
 .vg-drift-status.vg-drift-na { color: var(--vg-muted); font-weight: 400; }
 .vg-drift-status.vg-drift-error { color: var(--vg-primary-dark); }
+
+/* ---- auth (cmp/auth.js) ---- */
+
+.vg-auth-form { display: flex; flex-direction: column; gap: 0.9rem; width: 320px;
+  margin: 12vh auto 0; padding: 2rem; background: var(--vg-surface);
+  border: 1px solid var(--vg-border); border-radius: var(--vg-radius);
+  box-shadow: var(--vg-shadow-card); color: var(--vg-text); }
+.vg-auth-form h2 { margin: 0 0 0.2rem; font-size: 1.2rem; }
+.vg-auth-form label { display: flex; flex-direction: column; gap: 0.3rem;
+  font-size: 0.85rem; color: var(--vg-muted); }
+.vg-auth-form input { padding: 0.5rem 0.6rem; background: var(--vg-bg); color: var(--vg-text);
+  border: 1px solid var(--vg-border); border-radius: var(--vg-radius); font: inherit; }
+.vg-auth-form input:focus { outline: none; border-color: var(--vg-primary); }
+.vg-auth-form button[type="submit"] { padding: 0.55rem; background: var(--vg-primary);
+  color: #fff; border: none; border-radius: var(--vg-radius); font-weight: 600; cursor: pointer; }
+.vg-auth-form button[type="submit"]:hover { background: var(--vg-primary-dark); }
+.vg-auth-err { color: var(--vg-primary-dark); font-size: 0.85rem; min-height: 1.2em; }
