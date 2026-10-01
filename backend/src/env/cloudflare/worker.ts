@@ -132,9 +132,29 @@ export class RepoManagerDO {
     // this reason - see its own module comment.
     await SenecaGatewayCloudflare.prepareCloudflareCookieAuth(seneca, {
       token: { name: 'repo-manager-auth' },
-      // require: false - same posture as web.ts: resolve the principal
-      // from the cookie when one exists, don't block requests without one.
+      // require: false here (not true) - prepareCloudflareCookieAuth's
+      // own require hook has no way to exclude aim:web,on:auth,* from the
+      // gate, so it would 401 the signin request itself. The real gate
+      // is registered separately below - see web.ts's own comment on
+      // this same split.
       user: { auth: true, require: false },
+    })
+
+    // The actual session gate - see web.ts's own comment on why this is
+    // separate from the plugin's own require option. {out, gateway$}
+    // shape matches prepareCloudflareCookieAuth's own require:true hook
+    // exactly (gateway-cloudflare.ts reads result.gateway$.status and
+    // result.out for the response body).
+    await seneca.act('sys:gateway,add:hook,hook:action', {
+      action: async function requireAuth(this: any, msg: any) {
+        if ('auth' === msg.on) {
+          return
+        }
+        const user = this.fixedmeta?.custom?.principal?.user
+        if (!user) {
+          return { out: { ok: false, why: 'not-authenticated' }, gateway$: { status: 401 } }
+        }
+      },
     })
 
     // Mirrors web.ts's own three-way forge selection - see that file's

@@ -5,10 +5,14 @@
 // posts messages to (seneca-browser fetch transport).
 //
 // Login (srv/auth, @seneca/user + @seneca/gateway-auth's express_cookie
-// spec) sets/reads the session cookie on every request, but nothing is
-// gated behind it yet (user.require: false) - the inbox/drift views stay
-// reachable unauthenticated, same as before. Gating them is a separate,
-// later step once there's an actual reason to lock the app down.
+// spec) sets/reads the session cookie on every request. Every aim:web
+// message requires a signed-in session except aim:web,on:auth,* itself
+// (signin/signout/load:auth) - see the sys:gateway,add:hook,hook:action
+// registration below; gateway-auth's own user.require can't do this
+// (it has no per-message exclusion, so require:true would 401 signin
+// itself, locking everyone out permanently). The REST endpoint below
+// (/api/v1/inbox, for the MCP/SDK path) does NOT go through the gateway
+// at all, so this gate doesn't cover it - still unauthenticated.
 
 import Path from 'node:path'
 
@@ -110,13 +114,34 @@ async function run() {
         express_cookie: {
           active: true,
           token: { name: 'repo-manager-auth' },
-          // require: false - resolve the principal from the cookie when
-          // one exists (web_load_auth.ts reads it), but don't block
-          // requests without one; see this file's own header comment.
+          // require: false here (not true) - gateway-auth's own require
+          // hook has no way to exclude aim:web,on:auth,* from the gate,
+          // so it would 401 the signin request itself. The real gate is
+          // registered separately below.
           user: { auth: true, require: false },
         },
       },
     })
+
+  // The actual session gate: every aim:web message needs a signed-in
+  // principal except aim:web,on:auth,* (signin/signout/load:auth must
+  // stay reachable while signed out). Mirrors gateway-auth's own
+  // require:true hook (same ctx.res.sendStatus(401) + handler$:{done:true}
+  // shape - Express needs the real status set directly, a plain gateway$.
+  // status isn't enough once handler$.done skips the normal path), just
+  // with the one exclusion gateway-auth's own version can't express.
+  await seneca.act('sys:gateway,add:hook,hook:action', {
+    action: async function requireAuth(this: any, msg: any, ctx: any) {
+      if ('auth' === msg.on) {
+        return
+      }
+      const user = this.fixedmeta?.custom?.principal?.user
+      if (!user) {
+        ctx.res.sendStatus(401)
+        return { ok: false, why: 'not-authenticated', handler$: { done: true } }
+      }
+    },
+  })
 
   // REPO_MANAGER_FORGE=mem runs against the same in-memory fixture data the
   // test suite uses (test/fixtures/forge_mem.ts) instead of real GitHub -
