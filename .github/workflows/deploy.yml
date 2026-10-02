@@ -1,0 +1,46 @@
+name: Deploy to Cloudflare
+
+# Push to main deploys to production. Any other branch can be deployed
+# on demand via the Actions tab (workflow_dispatch) - this doesn't
+# auto-deploy every feature-branch push the way the old Cloudflare git
+# integration ("repomatic") did; that's a deliberate, safer default,
+# not an oversight. Change `branches: [main]` below if you'd rather
+# match the old every-push behavior.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install backend deps
+        working-directory: backend
+        # --force, not npm ci - seneca@4.0.0-rc5 is a prerelease, and
+        # npm's strict peer-dep resolver won't match it against the
+        # plain ">=3"-style ranges our Cloudflare-target plugins
+        # declare (node-semver only matches prereleases against ranges
+        # naming that same prerelease series) - see package.json's own
+        # dependency list (the github: entries) for which packages.
+        run: npm install --force
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npx vite build
+
+      - name: Deploy
+        working-directory: backend
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
