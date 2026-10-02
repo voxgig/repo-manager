@@ -78,6 +78,11 @@
   # already derives. Read-only, no apply (Stage 3, §19.6).
   { pat: [{aim: inbox}, {list: drift}] }
 
+  # `plan` (SPEC §14.2, §17) - real clone + worktree + file.write apply
+  # actions, through "detect changes" only. CLI-only: no aim:web proxy, no
+  # filesystem on the Cloudflare target (see plan_policy.ts's own comment).
+  { pat: [{aim: inbox}, {plan: policy}] }
+
   # External-contributor filter (Fleet sidebar) - PRs authored by someone
   # outside the clicked org's real GitHub membership. Same raw-browse shape
   # as list:pr, just pre-filtered; no rpm/item behind it either.

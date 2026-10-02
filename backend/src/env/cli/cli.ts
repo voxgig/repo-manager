@@ -38,6 +38,7 @@ async function run() {
       REPO_MANAGER_REPOS: valid.Skip(String),
       REPO_MANAGER_GITHUB_USER: valid.Skip(String),
       REPO_MANAGER_FORGE: valid.Skip(String),
+      REPO_MANAGER_WORKSPACE: valid.Skip(String),
     }),
     file: Path.join(__dirname, '..', '..', '..', 'env.local.js') + ';?',
   })
@@ -92,6 +93,9 @@ async function run() {
   else if ('doctor' === cmd) {
     await cmd_doctor(seneca, rest)
   }
+  else if ('plan' === cmd) {
+    await cmd_plan(seneca, rest)
+  }
   else {
     console.log('Usage: inbox sync --repos owner/name,owner/name --user login')
     console.log('       inbox list')
@@ -99,6 +103,7 @@ async function run() {
     console.log('       inbox status --repos owner/name,owner/name [--format table|json|md]')
     console.log('       inbox lint')
     console.log('       inbox doctor [--tail]')
+    console.log('       inbox plan --repos owner/name,owner/name [--policies id,id] [--diff]')
     process.exitCode = 1
   }
 
@@ -387,4 +392,56 @@ async function cmd_doctor(seneca: any, args: string[]) {
   if (!ok) {
     process.exitCode = 3
   }
+}
+
+
+// SPEC §14.2/§17: a real clone + worktree + file.write apply, through
+// "detect changes" only - see this project's own plan doc for why this
+// stops here (no commit/push/PR/run-records yet). Needs forge:github (a
+// real git remote) - mem/gitlab are rejected by plan_policy.ts itself.
+async function cmd_plan(seneca: any, args: string[]) {
+  const repos = flag(args, 'repos')
+  const policies = flag(args, 'policies')
+  const diff = args.includes('--diff')
+
+  if (!repos) {
+    console.log('Usage: inbox plan --repos owner/name,owner/name [--policies id,id] [--diff]')
+    process.exitCode = 1
+    return
+  }
+
+  const res = await seneca.post({
+    aim: 'inbox', plan: 'policy',
+    repo_ids: repos.split(','),
+    policy_ids: policies ? policies.split(',') : undefined,
+    diff,
+  })
+
+  if (!res.ok) {
+    console.log(`plan failed: ${res.why}`)
+    process.exitCode = 1
+    return
+  }
+
+  let anyFailed = false
+  for (const repo of res.repos) {
+    if (!repo.ok) {
+      console.log(`${repo.repo_id}  ERROR: ${repo.why}`)
+      anyFailed = true
+      continue
+    }
+    console.log(`${repo.repo_id}  ${repo.branch}  ${repo.changed ? 'changed' : 'clean'}  ${repo.files.length} file${1 === repo.files.length ? '' : 's'}`)
+    for (const p of repo.policies) {
+      console.log(`  ${p.policy_id}: ${p.status}${p.why ? ` (${p.why})` : ''}`)
+    }
+    for (const f of repo.files) {
+      console.log(`  ${f.status}  ${f.path}`)
+    }
+    console.log(`  worktree: ${repo.worktree}`)
+    if (diff && repo.diff) {
+      console.log(repo.diff)
+    }
+  }
+
+  process.exitCode = anyFailed ? 1 : 0
 }

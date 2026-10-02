@@ -17,6 +17,7 @@ message maps to the action file named after its last pattern pair.
 | `aim:inbox,list:pr` | `list_pr.ts` |
 | `aim:inbox,list:issue` | `list_issue.ts` |
 | `aim:inbox,list:drift` | `list_drift.ts` |
+| `aim:inbox,plan:policy` | `plan_policy.ts` |
 | `aim:inbox,list:external` | `list_external.ts` |
 | `aim:inbox,load:pr` | `load_pr.ts` |
 | `aim:inbox,approve:item` | `approve_item.ts` |
@@ -55,6 +56,7 @@ flowchart LR
   srv --> list_pr["aim:inbox,list:pr<br>list_pr.ts"]
   srv --> list_issue["aim:inbox,list:issue<br>list_issue.ts"]
   srv --> list_drift["aim:inbox,list:drift<br>list_drift.ts"]
+  srv --> plan_policy["aim:inbox,plan:policy<br>plan_policy.ts"]
   srv --> list_external["aim:inbox,list:external<br>list_external.ts"]
   srv --> load_pr["aim:inbox,load:pr<br>load_pr.ts"]
   srv --> approve_item["aim:inbox,approve:item<br>approve_item.ts"]

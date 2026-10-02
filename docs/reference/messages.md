@@ -44,6 +44,7 @@ flowchart LR
 | `aim:inbox,list:pr` | `src/srv/inbox/list_pr.ts` |
 | `aim:inbox,list:issue` | `src/srv/inbox/list_issue.ts` |
 | `aim:inbox,list:drift` | `src/srv/inbox/list_drift.ts` |
+| `aim:inbox,plan:policy` | `src/srv/inbox/plan_policy.ts` |
 | `aim:inbox,list:external` | `src/srv/inbox/list_external.ts` |
 | `aim:inbox,load:pr` | `src/srv/inbox/load_pr.ts` |
 | `aim:inbox,approve:item` | `src/srv/inbox/approve_item.ts` |

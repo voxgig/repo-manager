@@ -1,24 +1,51 @@
 // SPEC §14.1: a policy declares what compliance means (check) and how to
-// reach it (apply) - apply/the bulk-write pipeline is Stage 3 (§19.6);
-// this is check-only. Seeded like rpm/reply's saved replies - three real,
+// reach it (apply). Seeded like rpm/reply's saved replies - three real,
 // spec-grounded examples, not a management UI yet: standard-ci is §14.1's
 // own worked example; dependency-bot and pinned-actions come from
 // docs/inventory.md's Stage 0 fleet audit (the "Definition of Done"
 // tabnas/status already checks by hand, and the "no dependency automation"
 // finding called out as the fleet's highest-value gap).
 //
-// One action kind, two modes: file.exists, and file.matches with either
-// `contains` (a substring must be present) or `regex` + `mode:'notMatches'`
-// (a pattern must NOT be present - pinned-actions' only real option, since
-// "every `uses:` line is pinned" isn't expressible as "contains this one
-// substring"). json.equals/yaml.merge/text.replace/exec/repo.settings from
-// §14.1's full vocabulary aren't modeled - each needs its own executor
-// and, for the API-backed ones, its own forge action.
+// Check: file.exists, and file.matches with either `contains` (a substring
+// must be present) or `regex` + `mode:'notMatches'` (a pattern must NOT be
+// present - pinned-actions' only real option, since "every `uses:` line is
+// pinned" isn't expressible as "contains this one substring").
+// json.equals/yaml.merge/text.replace/repo.settings from §14.1's full
+// vocabulary aren't modeled - each needs its own executor and, for the
+// API-backed ones, its own forge action.
+//
+// Apply: file.write only (apply_action.ts), on standard-ci alone - the
+// bulk-write pipeline (plan_policy.ts, SPEC §14.2) starts there, through
+// "detect changes" only; commit/push/PR/run-records are a later slice.
 //
 // `applies` (SPEC §14.1's own example) is modeled for `hasFile` only, using
 // the same get:file primitive - `languages` isn't modeled: no forge action
 // reports a repo's language breakdown, and faking that isn't worth it for
 // three seeded policies.
+
+// Not a template literal - the content contains GitHub Actions' own
+// ${{ matrix.node-version }} syntax, which inside real backticks parses as
+// `${` + a JS expression `{ matrix.node-version }` (the hyphen isn't valid
+// JS) - a genuine syntax trap, not a style choice.
+const STANDARD_CI_WORKFLOW = [
+  '# Managed by repo-manager for {{repo}} - do not edit by hand',
+  'name: CI',
+  'on: [push, pull_request]',
+  'jobs:',
+  '  test:',
+  '    runs-on: ubuntu-latest',
+  '    strategy:',
+  '      matrix:',
+  '        node-version: [22, 24]',
+  '    steps:',
+  '      - uses: actions/checkout@v4',
+  '      - uses: actions/setup-node@v4',
+  '        with:',
+  '          node-version: ${{ matrix.node-version }}',
+  '      - run: npm ci',
+  '      - run: npm test',
+  '',
+].join('\n')
 
 const SEED_POLICIES = [
   {
@@ -28,6 +55,9 @@ const SEED_POLICIES = [
     check: [
       { action: 'file.exists', path: '.github/workflows/ci.yml' },
       { action: 'file.matches', path: '.github/workflows/ci.yml', contains: 'node-version: [22, 24]' },
+    ],
+    apply: [
+      { action: 'file.write', path: '.github/workflows/ci.yml', template: STANDARD_CI_WORKFLOW },
     ],
   },
   {
