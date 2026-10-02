@@ -19,13 +19,25 @@ import { System } from '@voxgig/system'
 type MakeAction = (...args: any[]) => any
 type HandlerMap = Record<string, MakeAction>
 
+// A missing handler stub-replies 'not-supported' instead of throwing -
+// throwing here happens during seneca.ready()'s synchronous plugin-init
+// pass, which workerd doesn't surface as a rejection the way plain Node
+// does; it hangs the whole DO forever instead (confirmed live: every
+// message on the srv stopped responding, not just the one with no static
+// handler, the same silent-hang class of bug @seneca/user's dynamic
+// require hit earlier). A srv file that's deliberately Node-only (e.g.
+// plan_policy.ts - real git/fs, never addable to handler-map.ts) is
+// expected to be missing here; the static map is a known subset of what
+// MakeSrv/@seneca/reload load on Node, not a bug to fail loudly over.
 function makeStaticReload(handlerMap: HandlerMap) {
-  return function staticReload(actpath: string, ...args: any[]): any {
+  return function staticReload(actpath: string, ..._args: any[]): any {
     const make = handlerMap[actpath]
     if (!make) {
-      throw new Error(`no static Cloudflare handler registered for ${actpath}`)
+      return async function notSupported(this: any) {
+        return { ok: false, why: `${actpath.replace(/^\.\//, '')} is not available on this platform` }
+      }
     }
-    return make(...args)
+    return make(..._args)
   }
 }
 
