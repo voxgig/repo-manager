@@ -13,7 +13,7 @@ import { Local } from '@voxgig/system'
 import Model from '../../model/model.json'
 
 const { basic } = require('../../dist/env/shared/basic.js')
-const forge_mem = require('../fixtures/forge_mem.js')
+const forge_mem = require('../../dist/forge/forge_mem')
 
 
 async function makeSeneca() {

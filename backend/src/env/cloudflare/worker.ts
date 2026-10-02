@@ -158,13 +158,14 @@ export class RepoManagerDO {
     })
 
     // Mirrors web.ts's own three-way forge selection - see that file's
-    // module comment. 'mem' is for local `wrangler dev` verification only
-    // (dist-test is a dev build artifact, never part of a real deploy);
-    // require() stays inside each branch, not hoisted to a top-level
-    // import, so a real deploy's bundle never pulls in a branch it can't
-    // reach - see basic.ts's own opening comment on this same discipline.
+    // module comment. require() stays inside each branch, not hoisted to
+    // a top-level import, matching forge_github/forge_gitlab's own
+    // sibling-module style - see basic.ts's opening comment on that
+    // discipline (it's about import style, not reachability: esbuild
+    // can't prove a runtime env-var branch dead, so it always resolves
+    // every branch's require() target regardless).
     if ('mem' === this.env.REPO_MANAGER_FORGE) {
-      seneca.use(require('../../../dist-test/fixtures/forge_mem'))
+      seneca.use(require('../../forge/forge_mem'))
     }
     else if ('gitlab' === this.env.REPO_MANAGER_FORGE) {
       seneca.use(require('../../forge/forge_gitlab'))

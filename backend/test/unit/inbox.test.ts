@@ -8,7 +8,7 @@ import { Local } from '@voxgig/system'
 import Model from '../../model/model.json'
 
 const { basic } = require('../../dist/env/shared/basic.js')
-const forge_mem = require('../fixtures/forge_mem.js')
+const forge_mem = require('../../dist/forge/forge_mem')
 
 
 async function makeSeneca() {
@@ -29,7 +29,7 @@ async function makeSeneca() {
 
 
 // forge_mem's fixture: PR p1 on repo r1, requesting review from
-// maintainer1 - see test/fixtures/forge_mem.ts.
+// maintainer1 - see src/forge/forge_mem.ts.
 const SYNC = { aim: 'inbox', sync: 'item', repo_ids: ['r1'], forge: 'mem', for_user: 'maintainer1' }
 
 // r2 has p2 (contributor2's PR, no review request - pr.inbound) and p3
@@ -396,7 +396,7 @@ describe('inbox', () => {
 
   // Item intents (SPEC §13.2): app-nouned messages that translate to
   // aim:forge,*,forge:mem behind the gateway. forge:mem's p1/r1 fixture
-  // (test/fixtures/forge_mem.ts) backs every one of these.
+  // (src/forge/forge_mem.ts) backs every one of these.
 
   test('approve-item-calls-forge-and-leaves-item-open', async () => {
     const seneca = await makeSeneca()

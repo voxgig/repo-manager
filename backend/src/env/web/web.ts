@@ -143,14 +143,14 @@ async function run() {
     },
   })
 
-  // REPO_MANAGER_FORGE=mem runs against the same in-memory fixture data the
-  // test suite uses (test/fixtures/forge_mem.ts) instead of real GitHub -
-  // no token needed, lets a second instance run alongside the real one for
-  // demo purposes. =gitlab runs the canned GitLab stub (SPEC §19.5) - proves
+  // REPO_MANAGER_FORGE=mem runs against the same in-memory forge the test
+  // suite uses (src/forge/forge_mem.ts) instead of real GitHub - no token
+  // needed, lets a second instance run alongside the real one for demo
+  // purposes. =gitlab runs the canned GitLab stub (SPEC §19.5) - proves
   // nothing here branches on which forge answers. Defaults to the real
   // GitHub forge, same as always.
   if ('mem' === process.env.REPO_MANAGER_FORGE) {
-    seneca.use(require('../../../dist-test/fixtures/forge_mem'))
+    seneca.use(require('../../forge/forge_mem'))
   }
   else if ('gitlab' === process.env.REPO_MANAGER_FORGE) {
     seneca.use(require('../../forge/forge_gitlab'))
