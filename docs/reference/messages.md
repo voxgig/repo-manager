@@ -13,10 +13,24 @@ flowchart LR
   client([Clients / SPA])
   gateway{{gateway}}
   client -->|aim:* messages| gateway
+  auth[srv auth]
+  gateway -->|aim:auth| auth
+  gateway -->|aim:web| auth
   inbox[srv inbox]
   gateway -->|aim:inbox| inbox
   gateway -->|aim:web| inbox
 ```
+
+## Service: auth
+
+| Message | Action file |
+|---|---|
+| `aim:auth,signin:user` | `src/srv/auth/signin_user.ts` |
+| `aim:auth,signout:user` | `src/srv/auth/signout_user.ts` |
+| `aim:auth,load:auth` | `src/srv/auth/load_auth.ts` |
+| `aim:web,on:auth,signin:user` | `src/srv/auth/web_signin_user.ts` |
+| `aim:web,on:auth,signout:user` | `src/srv/auth/web_signout_user.ts` |
+| `aim:web,on:auth,load:auth` | `src/srv/auth/web_load_auth.ts` |
 
 ## Service: inbox
 
@@ -30,6 +44,8 @@ flowchart LR
 | `aim:inbox,list:pr` | `src/srv/inbox/list_pr.ts` |
 | `aim:inbox,list:issue` | `src/srv/inbox/list_issue.ts` |
 | `aim:inbox,list:drift` | `src/srv/inbox/list_drift.ts` |
+| `aim:inbox,plan:policy` | `src/srv/inbox/plan_policy.ts` |
+| `aim:inbox,list:external` | `src/srv/inbox/list_external.ts` |
 | `aim:inbox,load:pr` | `src/srv/inbox/load_pr.ts` |
 | `aim:inbox,approve:item` | `src/srv/inbox/approve_item.ts` |
 | `aim:inbox,merge:item` | `src/srv/inbox/merge_item.ts` |
@@ -51,4 +67,5 @@ flowchart LR
 | `aim:web,on:inbox,list:pr` | `src/srv/inbox/web_list_pr.ts` |
 | `aim:web,on:inbox,list:issue` | `src/srv/inbox/web_list_issue.ts` |
 | `aim:web,on:inbox,list:drift` | `src/srv/inbox/web_list_drift.ts` |
+| `aim:web,on:inbox,list:external` | `src/srv/inbox/web_list_external.ts` |
 | `aim:web,on:inbox,load:pr` | `src/srv/inbox/web_load_pr.ts` |

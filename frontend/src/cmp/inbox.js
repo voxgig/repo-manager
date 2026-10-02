@@ -7,6 +7,8 @@
 // deliberately shallow.
 
 import * as Api from '../api.js'
+import * as Theme from '../theme.js'
+import { bus } from '../bus.js'
 
 const KIND_LABEL = {
   'pr.review_requested': 'review',
@@ -19,6 +21,16 @@ const KIND_LABEL = {
   'issue.untriaged': 'untriaged',
   'campaign.bot_pr': 'campaign',
   'repo.drift': 'drift',
+}
+
+// SPEC §14.3's four drift-matrix cell states - cellLabel is what the grid
+// cell itself shows, focusLabel/cls drive the side panel and both share
+// the cell's own color via the vg-drift-* classes (custom.css).
+const DRIFT_STATUS = {
+  compliant: { cellLabel: '✓', focusLabel: '✓ compliant', cls: 'vg-drift-ok' },
+  drifted: { cellLabel: '✕ drift', focusLabel: '✕ drifted', cls: 'vg-drift-bad' },
+  'not-applicable': { cellLabel: '–', focusLabel: '– not applicable', cls: 'vg-drift-na' },
+  error: { cellLabel: '⚠ error', focusLabel: '⚠ error', cls: 'vg-drift-error' },
 }
 
 // The known fleet (docs/inventory.md) - static until org modeling (Stage 4
@@ -116,6 +128,10 @@ const KEY_ACTIONS = {
 
 class VgInbox extends HTMLElement {
   async connectedCallback() {
+    // Already resolved by the time vg-app mounts this (it only does so
+    // once cmp:auth,load:state has a signed-in user) - a plain get is
+    // enough, no need to re-check the backend.
+    this.user = (await bus.post('cmp:auth,get:state')).user
     this.items = []
     this.view = 'inbox'
     this.focusIndex = 0
@@ -140,6 +156,10 @@ class VgInbox extends HTMLElement {
     this.driftPolicies = []
     this.driftCells = []
     this.driftFocus = { row: 0, col: 0 }
+    // Fleet sidebar's external-contributor filter - which org is focused
+    // (view 'external' is parameterized by it, unlike the fixed VIEWS).
+    this.externalOrg = null
+    this.externalMemberCount = 0
     // Sidebar badge counts, one per real view - kept separate from
     // this.items (the ACTIVE view's rows) so every nav entry can show a
     // real count, not just the one currently open.
@@ -195,6 +215,11 @@ class VgInbox extends HTMLElement {
       this.driftFocus = { row: 0, col: 0 }
       this.items = []
     }
+    else if ('external' === this.view) {
+      const res = await Api.listExternalPulls(this.externalOrg)
+      this.items = res.prs
+      this.externalMemberCount = res.member_count
+    }
     else {
       this.items = await Api.listInbox(this.viewState())
       // now < soon < later, then most recently updated first within a tier.
@@ -203,7 +228,7 @@ class VgInbox extends HTMLElement {
         (rank[a.priority] ?? 9) - (rank[b.priority] ?? 9) || (b.updated_at || 0) - (a.updated_at || 0))
     }
     this.counts[this.view] = 'drift' === this.view
-      ? this.driftCells.filter((c) => !c.compliant).length
+      ? this.driftCells.filter((c) => 'drifted' === c.status).length
       : this.items.length
     this.clampFocus()
     this.render()
@@ -246,7 +271,15 @@ class VgInbox extends HTMLElement {
   }
 
   itemActionsAvailable() {
-    return VIEWS[this.view].itemActions
+    // 'external' isn't a VIEWS key (it's parameterized by org, not fixed) -
+    // treat any view VIEWS doesn't know as read-only, same as it is.
+    return !!(VIEWS[this.view] && VIEWS[this.view].itemActions)
+  }
+
+  // 'external' has no fixed title (VIEWS doesn't carry it) - everywhere
+  // else uses VIEWS[this.view].title.
+  currentTitle() {
+    return 'external' === this.view ? `External PRs · ${this.externalOrg}` : VIEWS[this.view].title
   }
 
   // Guards every item-intent entry point - a raw Pull requests row has no
@@ -294,6 +327,21 @@ class VgInbox extends HTMLElement {
     await this.load()
   }
 
+  // Fleet sidebar org click - same shape as switchView, but 'external' is
+  // parameterized (which org), so re-clicking the same org is the no-op,
+  // not any switch to 'external'.
+  async switchToExternalOrg(org) {
+    if ('external' === this.view && this.externalOrg === org) {
+      return
+    }
+    this.view = 'external'
+    this.externalOrg = org
+    this.focusIndex = 0
+    this.searchQuery = ''
+    this.detail = null
+    await this.load()
+  }
+
   // Local search (SPEC §13.3): the full set is already in memory, so
   // filtering is just an array filter - no request.
   visibleItems() {
@@ -320,6 +368,9 @@ class VgInbox extends HTMLElement {
       { id: 'view-campaigns', label: 'view: campaigns', run: () => this.switchView('campaigns') },
       { id: 'view-pulls', label: 'view: pull requests', run: () => this.switchView('pulls') },
       { id: 'view-drift', label: 'view: drift matrix', run: () => this.switchView('drift') },
+      ...FLEET_ORGS.map((o) => ({
+        id: `view-external-${o}`, label: `view: external PRs - ${o}`, run: () => this.switchToExternalOrg(o),
+      })),
       { id: 'open', label: 'open detail (Enter)', run: () => this.openDetail() },
       { id: 'open-external', label: 'open on forge (o)', run: () => this.openExternal() },
       { id: 'done', label: 'done (e)', run: () => this.dismissFocused() },
@@ -788,7 +839,10 @@ class VgInbox extends HTMLElement {
           </div>`).join('')}
         ${INERT_SECTIONS.map((s) => `<div class="vg-nav-item vg-nav-inert">${esc(s)}</div>`).join('')}
         <div class="vg-nav-group-title">Fleet</div>
-        ${FLEET_ORGS.map((o) => `<div class="vg-nav-item vg-nav-inert">${esc(o)}</div>`).join('')}
+        ${FLEET_ORGS.map((o) => `
+          <div class="vg-nav-item${'external' === this.view && this.externalOrg === o ? ' vg-nav-active' : ''}" data-org="${esc(o)}" title="external PRs">
+            ${esc(o)}
+          </div>`).join('')}
       </nav>`
   }
 
@@ -796,25 +850,54 @@ class VgInbox extends HTMLElement {
     for (const nav of this.querySelectorAll('.vg-nav-item[data-view]')) {
       nav.onclick = () => this.switchView(nav.dataset.view)
     }
+    for (const nav of this.querySelectorAll('.vg-nav-item[data-org]')) {
+      nav.onclick = () => this.switchToExternalOrg(nav.dataset.org)
+    }
+  }
+
+  // Shared by the list and drift pages (the detail page runs its own,
+  // narrower topbar) - crumbTitle is the only thing that varies.
+  renderTopbar(crumbTitle) {
+    return `
+      <header class="vg-inbox-topbar">
+        <span class="vg-inbox-brand">🔴 repo-manager</span>
+        <span class="vg-inbox-crumb">/ ${esc(crumbTitle)}</span>
+        <div class="vg-spacer"></div>
+        ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
+        <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
+        <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
+        <button class="vg-theme-btn" id="vg-theme-toggle" title="toggle theme">${'dark' === Theme.current() ? '☀' : '🌙'}</button>
+        <span class="vg-inbox-avatar" id="vg-signout" title="${this.user ? 'Sign out (' + esc(this.user.email) + ')' : ''}">${this.user ? esc(this.user.email[0].toUpperCase()) : '·'}</span>
+      </header>`
+  }
+
+  wireTopbar() {
+    const cmdkBtn = this.querySelector('#vg-cmdk-open')
+    if (cmdkBtn) {
+      cmdkBtn.onclick = () => this.togglePalette(true)
+    }
+    const themeBtn = this.querySelector('#vg-theme-toggle')
+    if (themeBtn) {
+      themeBtn.onclick = () => {
+        Theme.nextMode()
+        this.render()
+      }
+    }
+    const signoutBtn = this.querySelector('#vg-signout')
+    if (signoutBtn && this.user) {
+      signoutBtn.onclick = () => bus.post('cmp:auth,signout:user')
+    }
   }
 
   renderListPage() {
     const items = this.visibleItems()
     const focused = items[this.focusIndex]
-    const viewTitle = VIEWS[this.view].title
+    const viewTitle = this.currentTitle()
     const showActions = this.itemActionsAvailable()
 
     return `
       <div class="vg-inbox">
-        <header class="vg-inbox-topbar">
-          <span class="vg-inbox-brand">🔴 repo-manager</span>
-          <span class="vg-inbox-crumb">/ ${esc(viewTitle)}</span>
-          <div class="vg-spacer"></div>
-          ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
-          <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
-          <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
-          <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
-        </header>
+        ${this.renderTopbar(viewTitle)}
         <div class="vg-inbox-shell">
           ${this.renderNav()}
           <div class="vg-inbox-main">
@@ -829,6 +912,9 @@ class VgInbox extends HTMLElement {
                   : `<div class="vg-empty">${this.searchQuery ? 'no matches' : viewTitle.toLowerCase() + ' is empty'}</div>`}
                 ${items.length && this.itemActionsAvailable()
                   ? '<div class="vg-inbox-footnote">items vanish on their own when the condition clears - merged PRs never need a keystroke</div>'
+                  : ''}
+                ${'external' === this.view && 0 === this.externalMemberCount
+                  ? `<div class="vg-inbox-footnote">couldn't see ${esc(this.externalOrg)}'s member list (private membership, and we're not a member ourselves) - every author here is shown as external, but that may just mean membership is invisible to us, not that nobody here belongs to the org</div>`
                   : ''}
               </div>
               <aside class="vg-inbox-focus">
@@ -868,11 +954,7 @@ class VgInbox extends HTMLElement {
     }
 
     this.wireNav()
-
-    const cmdkBtn = this.querySelector('#vg-cmdk-open')
-    if (cmdkBtn) {
-      cmdkBtn.onclick = () => this.togglePalette(true)
-    }
+    this.wireTopbar()
 
     const searchInput = this.querySelector('.vg-search-input')
     if (searchInput) {
@@ -1237,15 +1319,7 @@ class VgInbox extends HTMLElement {
 
     return `
       <div class="vg-inbox">
-        <header class="vg-inbox-topbar">
-          <span class="vg-inbox-brand">🔴 repo-manager</span>
-          <span class="vg-inbox-crumb">/ ${esc(VIEWS.drift.title)}</span>
-          <div class="vg-spacer"></div>
-          ${this.statusMsg ? `<span class="vg-inbox-status">${esc(this.statusMsg)}</span>` : ''}
-          <span class="vg-inbox-meta">${this.lastSyncedAt ? `synced ${agoShort(this.lastSyncedAt)} · ` : ''}${FLEET_ORGS.length} orgs · 1 forge</span>
-          <button class="vg-cmdk-btn" id="vg-cmdk-open">⌘K commands</button>
-          <span class="vg-inbox-avatar" title="no sign-in yet">·</span>
-        </header>
+        ${this.renderTopbar(VIEWS.drift.title)}
         <div class="vg-inbox-shell">
           ${this.renderNav()}
           <div class="vg-inbox-main">
@@ -1260,16 +1334,17 @@ class VgInbox extends HTMLElement {
                             <td class="vg-drift-repo">${esc(repo)}</td>
                             ${policies.map((p, ci) => {
                               const cell = this.driftCellAt(repo, p.id)
-                              const cls = !cell ? '' : cell.compliant ? ' vg-drift-ok' : ' vg-drift-bad'
+                              const info = cell && DRIFT_STATUS[cell.status]
+                              const cls = info ? ' ' + info.cls : ''
                               const focus = ri === this.driftFocus.row && ci === this.driftFocus.col ? ' vg-focused' : ''
-                              const label = !cell ? '—' : cell.compliant ? '✓' : '✕ drift'
+                              const label = info ? info.cellLabel : '—'
                               return `<td class="vg-drift-cell${cls}${focus}" data-row="${ri}" data-col="${ci}">${label}</td>`
                             }).join('')}
                           </tr>`).join('')}
                       </tbody>
                     </table>`
                   : '<div class="vg-empty">no repos configured</div>'}
-                ${repoIds.length && this.driftCells.some((c) => !c.compliant)
+                ${repoIds.length && this.driftCells.some((c) => 'drifted' === c.status)
                   ? '<div class="vg-inbox-footnote">every drifted cell is also a work item in the inbox</div>'
                   : ''}
               </div>
@@ -1288,22 +1363,19 @@ class VgInbox extends HTMLElement {
   }
 
   renderDriftFocus(repo, policy, cell) {
+    const info = DRIFT_STATUS[cell.status] || {}
     return `
       <div class="vg-focused-label">FOCUSED CELL</div>
       <h3 class="vg-focus-title">${esc(repo)} × ${esc(policy.id)}</h3>
       <div class="vg-muted">${esc(policy.description)}</div>
-      <div class="vg-drift-status${cell.compliant ? '' : ' vg-drift-bad'}">
-        ${cell.compliant ? '✓ compliant' : '✕ ' + esc(cell.why || 'drift')}
+      <div class="vg-drift-status ${esc(info.cls || '')}">
+        ${info.focusLabel || cell.status}${cell.why ? ' - ' + esc(cell.why) : ''}
       </div>`
   }
 
   wireDriftPage() {
     this.wireNav()
-
-    const cmdkBtn = this.querySelector('#vg-cmdk-open')
-    if (cmdkBtn) {
-      cmdkBtn.onclick = () => this.togglePalette(true)
-    }
+    this.wireTopbar()
 
     for (const cell of this.querySelectorAll('.vg-drift-cell')) {
       cell.onclick = () => {

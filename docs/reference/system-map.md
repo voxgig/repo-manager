@@ -22,8 +22,10 @@ flowchart TB
   end
   bus -->|aim:* over browser transport| gateway{{gateway}}
   subgraph services[Services]
+    srv_auth[auth]
     srv_inbox[inbox]
   end
+  gateway --> srv_auth
   gateway --> srv_inbox
   subgraph data[Entities]
     subgraph zone_rpm[zone rpm]
@@ -34,6 +36,7 @@ flowchart TB
       sys_user[user]
     end
   end
+  srv_auth --> data
   srv_inbox --> data
 ```
 

@@ -9,6 +9,11 @@
 import Seneca from 'seneca'
 import { Live } from '@voxgig/system'
 
+// require(), not import - see backend/src/env/shared/basic.ts's own comment.
+const SenecaGateway = require('@seneca/gateway')
+const SenecaGatewayLambda = require('@seneca/gateway-lambda')
+const SenecaGatewayAuth = require('@seneca/gateway-auth')
+
 import { basic, base } from '../shared/basic'
 
 import Pkg from '../../../package.json'
@@ -42,15 +47,15 @@ async function getSeneca(srvname: string, complete: Function): Promise<any> {
     basic(seneca, { reload: { active: false } })
 
     seneca
-      .use('gateway')
-      .use('gateway-lambda', {
+      .use(SenecaGateway)
+      .use(SenecaGatewayLambda, {
         auth: {
           token: {
             name: 'repo-manager-auth',
           },
         },
       })
-      .use('gateway-auth', {
+      .use(SenecaGatewayAuth, {
         spec: {
           lambda_cookie: {
             active: true,

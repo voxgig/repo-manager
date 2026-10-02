@@ -159,8 +159,12 @@ async function syncDrift(seneca: any, repo_ids: string[], forge: string, seen: S
     const org_id = repo_id.split('/')[0]
 
     for (const policy of SEED_POLICIES) {
+      // Only a genuine drift becomes a work item - not-applicable (the
+      // policy's `applies` gate excludes this repo) and error (the forge
+      // call itself failed) are matrix-only signals, not something the
+      // maintainer needs to act on the same way.
       const result = await runPolicy(seneca, forge, repo_id, policy)
-      if (result.compliant) {
+      if ('drifted' !== result.status) {
         continue
       }
 

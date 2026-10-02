@@ -37,6 +37,16 @@
   # reads only, decoded to plain text regardless of forge wire encoding.
   { pat: [{aim: forge}, {get: file}] }
 
+  # The fleet's external-contributor filter (Fleet sidebar, click an org) -
+  # real org membership, not a guess. May come back empty for an org whose
+  # membership is fully concealed and we aren't a member of ourselves -
+  # that's GitHub's own visibility rule, not a bug; the caller surfaces it.
+  { pat: [{aim: forge}, {get: members}] }
+
+  # doctor's credential-validity + rate-limit-headroom check (SPEC §17) -
+  # CLI-only, never reachable from the browser.
+  { pat: [{aim: forge}, {get: rate}] }
+
 
   # ---- inbox — the one semantic intent for this stage --------------------
   # service is what translates it into forge messages.
@@ -68,6 +78,16 @@
   # already derives. Read-only, no apply (Stage 3, §19.6).
   { pat: [{aim: inbox}, {list: drift}] }
 
+  # `plan` (SPEC §14.2, §17) - real clone + worktree + file.write apply
+  # actions, through "detect changes" only. CLI-only: no aim:web proxy, no
+  # filesystem on the Cloudflare target (see plan_policy.ts's own comment).
+  { pat: [{aim: inbox}, {plan: policy}] }
+
+  # External-contributor filter (Fleet sidebar) - PRs authored by someone
+  # outside the clicked org's real GitHub membership. Same raw-browse shape
+  # as list:pr, just pre-filtered; no rpm/item behind it either.
+  { pat: [{aim: inbox}, {list: external}] }
+
   # The detail view for either kind of row above (item-backed or raw
   # browse) - PR-only for now, see the loose-ends memory note.
   { pat: [{aim: inbox}, {load: pr}] }
@@ -97,7 +117,19 @@
   { pat: [{aim: web}, {on: inbox}, {list: pr}], file: './web_list_pr' }
   { pat: [{aim: web}, {on: inbox}, {list: issue}], file: './web_list_issue' }
   { pat: [{aim: web}, {on: inbox}, {list: drift}], file: './web_list_drift' }
+  { pat: [{aim: web}, {on: inbox}, {list: external}], file: './web_list_external' }
   { pat: [{aim: web}, {on: inbox}, {load: pr}], file: './web_load_pr' }
+
+
+  # ---- auth — login/logout + session check, backed by @seneca/user -------
+
+  { pat: [{aim: auth}, {signin: user}] }
+  { pat: [{aim: auth}, {signout: user}] }
+  { pat: [{aim: auth}, {load: auth}] }
+
+  { pat: [{aim: web}, {on: auth}, {signin: user}], file: './web_signin_user' }
+  { pat: [{aim: web}, {on: auth}, {signout: user}], file: './web_signout_user' }
+  { pat: [{aim: web}, {on: auth}, {load: auth}], file: './web_load_auth' }
 
 ]
 

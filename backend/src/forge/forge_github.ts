@@ -1,14 +1,22 @@
 // Real GitHub forge, specializing the same aim:forge,* contract forge:mem
 // answers from fixtures. repo_id is the GitHub "owner/repo" full name.
 
+// require(), not import - see basic.ts's own comment on this same fix.
+const SenecaPromisify = require('seneca-promisify')
+const SenecaEntity = require('seneca-entity')
+const SenecaProvider = require('@seneca/provider')
+const SenecaGithubProvider = require('@seneca/github-provider')
+
 module.exports = function forge_github(this: any, options: any) {
   const seneca = this
 
+  // Direct references, not string names - see basic.ts's own comment on
+  // this same fix.
   seneca
-    .use('promisify')
-    .use('entity')
-    .use('provider')
-    .use('github-provider', options.provider || {})
+    .use(SenecaPromisify)
+    .use(SenecaEntity)
+    .use(SenecaProvider)
+    .use(SenecaGithubProvider, options.provider || {})
 
   seneca.message('aim:forge,list:pr,forge:github', async function (this: any, msg: any) {
     const [owner, repo] = String(msg.repo_id).split('/')
@@ -134,6 +142,36 @@ module.exports = function forge_github(this: any, options: any) {
     return {
       ok: true, exists: true,
       content: 'base64' === file.encoding ? Buffer.from(file.content, 'base64').toString('utf8') : file.content,
+    }
+  })
+
+  // The fleet's external-contributor filter - only public org members are
+  // visible unless the authenticated user is itself a member of the org
+  // (GitHub's own rule, not ours); an org with fully concealed membership
+  // and no membership of our own reads as zero members, not zero
+  // contributors - the caller surfaces that distinction, this action just
+  // reports what GitHub actually returned.
+  seneca.message('aim:forge,get:members,forge:github', async function (this: any, msg: any) {
+    const list = await this.entity('provider/github/member').list$({ org: msg.org })
+    return { ok: true, logins: list.map((m: any) => m.login) }
+  })
+
+  // doctor's credential-validity + rate-limit-headroom check (SPEC §17).
+  // rate_limit has no id at all, and seneca-entity's own load$() shorthand
+  // requires an identifying value - called with none, it resolves to null
+  // entirely client-side without ever reaching this provider, verified by
+  // tracing it (load$() / load$(null) / load$({}) all short-circuit the
+  // same way). The raw entity message doesn't have that requirement.
+  seneca.message('aim:forge,get:rate,forge:github', async function (this: any, msg: any) {
+    try {
+      const res = await this.post({ role: 'entity', cmd: 'load', zone: 'provider', base: 'github', name: 'rate_limit', q: {} })
+      if (!res) {
+        return { ok: false, why: 'credential rejected' }
+      }
+      return { ok: true, limit: res.limit, remaining: res.remaining, reset: res.reset, used: res.used }
+    }
+    catch (err: any) {
+      return { ok: false, why: 401 === err.status ? 'credential rejected' : (err.message || 'forge call failed') }
     }
   })
 
