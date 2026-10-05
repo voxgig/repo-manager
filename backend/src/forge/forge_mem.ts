@@ -1,6 +1,7 @@
-// Test-only forge, answering every base aim:forge,* pattern from
-// canned in-memory data. The whole engine/inbox suite runs against
-// this instead of a real GitHub/GitLab account.
+// In-memory forge, answering every base aim:forge,* pattern from canned
+// data. Used by the test suite, and also by REPO_MANAGER_FORGE=mem - a
+// real, deployable demo mode (no token needed) - so this lives in src,
+// not test/fixtures: a deploy's bundle needs to actually resolve it.
 
 module.exports = function forge_mem(this: any) {
   const seneca = this

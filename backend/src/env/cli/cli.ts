@@ -54,7 +54,7 @@ async function run() {
   // Same three-way choice as web.ts: =mem/=gitlab need no token, useful for
   // trying every CLI command (including status) without real credentials.
   if ('mem' === process.env.REPO_MANAGER_FORGE) {
-    seneca.use(require('../../../dist-test/fixtures/forge_mem'))
+    seneca.use(require('../../forge/forge_mem'))
   }
   else if ('gitlab' === process.env.REPO_MANAGER_FORGE) {
     seneca.use(require('../../forge/forge_gitlab'))

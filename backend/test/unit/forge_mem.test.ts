@@ -4,7 +4,7 @@ import { expect } from '@hapi/code'
 
 import Seneca from 'seneca'
 
-const forge_mem = require('../fixtures/forge_mem.js')
+const forge_mem = require('../../dist/forge/forge_mem')
 
 
 async function makeSeneca() {
