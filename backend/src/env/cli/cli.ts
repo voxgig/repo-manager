@@ -96,6 +96,9 @@ async function run() {
   else if ('plan' === cmd) {
     await cmd_plan(seneca, rest)
   }
+  else if ('apply' === cmd) {
+    await cmd_apply(seneca, rest)
+  }
   else {
     console.log('Usage: inbox sync --repos owner/name,owner/name --user login')
     console.log('       inbox list')
@@ -104,6 +107,7 @@ async function run() {
     console.log('       inbox lint')
     console.log('       inbox doctor [--tail]')
     console.log('       inbox plan --repos owner/name,owner/name [--policies id,id] [--diff]')
+    console.log('       inbox apply --repos owner/name,owner/name [--policies id,id] --yes [--limit N]')
     process.exitCode = 1
   }
 
@@ -444,4 +448,48 @@ async function cmd_plan(seneca: any, args: string[]) {
   }
 
   process.exitCode = anyFailed ? 1 : 0
+}
+
+
+// `apply` (SPEC §14.2, §15, §17) - plan's pipeline continued through
+// commit/push/open-or-update PR. --yes is required (S1) and translates to
+// msg.confirmed - apply_policy.ts's own gate, not just a CLI nicety, so
+// calling the message directly can't skip it either.
+async function cmd_apply(seneca: any, args: string[]) {
+  const repos = flag(args, 'repos')
+  const policies = flag(args, 'policies')
+  const yes = args.includes('--yes')
+  const limitArg = flag(args, 'limit')
+
+  if (!repos) {
+    console.log('Usage: inbox apply --repos owner/name,owner/name [--policies id,id] --yes [--limit N]')
+    process.exitCode = 1
+    return
+  }
+
+  const res = await seneca.post({
+    aim: 'inbox', apply: 'policy',
+    repo_ids: repos.split(','),
+    policy_ids: policies ? policies.split(',') : undefined,
+    confirmed: yes,
+    limit: limitArg ? Number(limitArg) : undefined,
+  })
+
+  if (!res.ok) {
+    console.log(`apply failed: ${res.why}`)
+    process.exitCode = 4
+    return
+  }
+
+  console.log(`run record: ${res.runRecord}`)
+  let anyFailed = false
+  for (const repo of res.repos) {
+    const detail = repo.pr_url || repo.why || ''
+    console.log(`${repo.repo_id}  ${repo.status}  ${repo.branch || ''}  ${detail}`)
+    if ('failed' === repo.status) {
+      anyFailed = true
+    }
+  }
+
+  process.exitCode = anyFailed ? 2 : 0
 }
