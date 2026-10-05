@@ -1,0 +1,8 @@
+{
+  "name": "repo-manager-monorepo",
+  "private": true,
+  "workspaces": ["backend", "frontend"],
+  "scripts": {
+    "postinstall": "npm run build --workspace=frontend"
+  }
+}
