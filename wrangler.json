@@ -1,0 +1,27 @@
+{
+  "name": "repo-manager",
+  "main": "backend/src/env/cloudflare/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "frontend/dist",
+    "binding": "ASSETS",
+    "run_worker_first": false
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "REPO_MANAGER_DO", "class_name": "RepoManagerDO" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RepoManagerDO"] }
+  ],
+  "vars": {
+    "REPO_MANAGER_FORGE": "mem",
+    "REPO_MANAGER_REPOS": "r1,voxgig/sdkgen",
+    "REPO_MANAGER_GITHUB_USER": "maintainer1",
+    "ADMIN_EMAIL": "admin@repo-manager.local",
+    "ADMIN_PASSWORD": "demo-pass-123"
+  },
+  "observability": { "enabled": true }
+}
