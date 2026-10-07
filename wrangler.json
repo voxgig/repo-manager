@@ -3,6 +3,14 @@
   "main": "backend/src/env/cloudflare/worker.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  // @hapi/joi's package.json sets "browser": "dist/joi-browser.min.js", and
+  // esbuild honours that field when bundling for Workers - pulling in a
+  // browser build whose top-level code touches `window`, which throws during
+  // Cloudflare's upload validation. seneca reaches joi via optioner, so this
+  // is unavoidable without pinning the node build explicitly.
+  "alias": {
+    "@hapi/joi": "@hapi/joi/lib/index.js"
+  },
   "assets": {
     "directory": "frontend/dist",
     "binding": "ASSETS",
