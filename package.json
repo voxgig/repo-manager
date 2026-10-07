@@ -3,6 +3,6 @@
   "private": true,
   "workspaces": ["backend", "frontend"],
   "scripts": {
-    "postinstall": "npm run build --workspace=frontend"
+    "build": "cd frontend && npm run build"
   }
 }
