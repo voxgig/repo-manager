@@ -162,6 +162,20 @@ module.exports = function forge_github(this: any, options: any) {
   // entirely client-side without ever reaching this provider, verified by
   // tracing it (load$() / load$(null) / load$({}) all short-circuit the
   // same way). The raw entity message doesn't have that requirement.
+  // SPEC S2's own named concern: a wildcard ruleset (e.g. repo-manager/*)
+  // protects branches this tool is about to create, not just existing
+  // protected ones. RepositoryRuleDetailed is GitHub's "rules for a branch"
+  // endpoint - it evaluates every applicable branch-protection rule AND
+  // repo/org ruleset for a branch BY NAME, even one that doesn't exist yet,
+  // which plain branch-protection lookups can't do.
+  seneca.message('aim:forge,get:branch_rules,forge:github', async function (this: any, msg: any) {
+    const [owner, repo] = String(msg.repo_id).split('/')
+    const res = await this.entity('provider/github/repository_rule_detailed')
+      .load$({ id: msg.branch, owner, repo })
+    const rules = Array.isArray(res) ? res : (res ? [res] : [])
+    return { ok: true, rules }
+  })
+
   seneca.message('aim:forge,get:rate,forge:github', async function (this: any, msg: any) {
     try {
       const res = await this.post({ role: 'entity', cmd: 'load', zone: 'provider', base: 'github', name: 'rate_limit', q: {} })
@@ -189,6 +203,11 @@ function normalizePr(pr: any, repo_id: string) {
     author: pr.user?.login,
     requested_reviewers: (pr.requested_reviewers || []).map((r: any) => r.login),
     updated_at: pr.updated_at ? Date.parse(pr.updated_at) : undefined,
+    // head_ref is how apply_policy.ts finds "is there already an open PR
+    // for the branch I'm about to push" (SPEC S6) without a second forge
+    // action - list:pr already carries enough to filter by head branch.
+    head_ref: pr.head?.ref,
+    base_ref: pr.base?.ref,
   }
 }
 
@@ -205,8 +224,6 @@ function normalizePrDetail(pr: any, repo_id: string) {
     merged: !!pr.merged,
     mergeable: pr.mergeable,
     mergeable_state: pr.mergeable_state,
-    head_ref: pr.head?.ref,
-    base_ref: pr.base?.ref,
     additions: pr.additions,
     deletions: pr.deletions,
     changed_files: pr.changed_files,

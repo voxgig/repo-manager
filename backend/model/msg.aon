@@ -83,6 +83,11 @@
   # filesystem on the Cloudflare target (see plan_policy.ts's own comment).
   { pat: [{aim: inbox}, {plan: policy}] }
 
+  # `apply` (SPEC §14.2, §15, §17) - plan_policy.ts's pipeline continued
+  # through commit/push/open-or-update PR, gated by the S1-S10 safety
+  # checks. CLI-only, same reasons as plan:policy.
+  { pat: [{aim: inbox}, {apply: policy}] }
+
   # External-contributor filter (Fleet sidebar) - PRs authored by someone
   # outside the clicked org's real GitHub membership. Same raw-browse shape
   # as list:pr, just pre-filtered; no rpm/item behind it either.

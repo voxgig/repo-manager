@@ -73,6 +73,80 @@ async function addWorktree(mirrorPath: string, branch: string, worktreeDir: stri
   await execFileP('git', ['-C', mirrorPath, 'worktree', 'add', '--detach', worktreeDir, branch])
 }
 
+// `apply`'s equivalent of addWorktree, on a real (non-detached) branch - and
+// the mechanism behind SPEC S6 idempotency without ever force-pushing (S3):
+// if branchName already exists (a previous apply already pushed it), check
+// it out as-is rather than re-branching from baseBranch, so an unchanged
+// re-apply (identical, deterministic template rendering) produces an empty
+// diff and apply_policy.ts reports no-op before any commit/push is even
+// attempted. Only a brand-new branch name branches fresh from baseBranch.
+// Known limitation, not handled this slice: if baseBranch has moved on since
+// the tool branch was created, this does not rebase onto it - the branch
+// just re-applies against its own existing tip.
+async function addWorktreeOnBranch(mirrorPath: string, baseBranch: string, branchName: string, worktreeDir: string): Promise<void> {
+  // worktreeDir is deterministic per (repo, branch) in apply_policy.ts, not
+  // per-run like plan's --detach worktrees - git refuses to check out the
+  // same real (non-detached) branch into a second worktree directory at
+  // once, so a second apply reuses the exact worktree the first one made,
+  // already sitting at the branch's current tip, rather than erroring.
+  if (Fs.existsSync(worktreeDir)) {
+    return
+  }
+  Fs.mkdirSync(Path.dirname(worktreeDir), { recursive: true })
+  try {
+    await execFileP('git', ['-C', mirrorPath, 'rev-parse', '--verify', 'refs/heads/' + branchName])
+    await execFileP('git', ['-C', mirrorPath, 'worktree', 'add', worktreeDir, branchName])
+  }
+  catch {
+    await execFileP('git', ['-C', mirrorPath, 'worktree', 'add', '-b', branchName, worktreeDir, baseBranch])
+  }
+}
+
+// Fixed, not a persisted git config - keeps every tool commit attributable
+// without touching the worktree's own user.name/email (same non-persisting
+// discipline as authFlag()).
+const BOT_AUTHOR_NAME = 'repo-manager-bot'
+const BOT_AUTHOR_EMAIL = 'repo-manager-bot@users.noreply.github.com'
+
+function botIdentityFlags(): string[] {
+  return ['-c', 'user.name=' + BOT_AUTHOR_NAME, '-c', 'user.email=' + BOT_AUTHOR_EMAIL]
+}
+
+async function commitAll(worktreeDir: string, message: string): Promise<void> {
+  await execFileP('git', ['-C', worktreeDir, 'add', '-A'])
+  await execFileP('git', [...botIdentityFlags(), '-C', worktreeDir, 'commit', '-m', message])
+}
+
+async function pushBranch(worktreeDir: string, url: string, token: string, branch: string): Promise<void> {
+  // Never --force (S3) - every push here is either a brand-new branch or
+  // one only this tool has ever committed to (S10 already gated the
+  // alternative out before this is called), so a plain push always works.
+  await execFileP('git', [...authFlag(token), '-C', worktreeDir, 'push', url, branch])
+}
+
+// SPEC S10: "a tool-branch carrying commits it did not author means that
+// repo is skipped." ensureMirror's own fetch/clone already lands the
+// remote's current refs/heads/* directly into the mirror (a bare clone's
+// default refspec), so no separate fetch is needed here - just read what's
+// already there. A branch that doesn't exist yet has nothing foreign by
+// definition (it's about to be created fresh from baseBranch).
+//
+// `baseBranch..branch`, not a plain log of branch - branch was created FROM
+// baseBranch, so a plain log also walks baseBranch's own pre-existing
+// history (its initial commit, authored by whoever owns the repo, not the
+// bot) and would misreport every repo as foreign. The range restricts this
+// to commits unique to the tool branch, which is the only thing S10 means.
+async function hasForeignCommits(mirrorPath: string, baseBranch: string, branch: string): Promise<boolean> {
+  try {
+    await execFileP('git', ['-C', mirrorPath, 'rev-parse', '--verify', 'refs/heads/' + branch])
+  }
+  catch {
+    return false
+  }
+  const { stdout } = await execFileP('git', ['-C', mirrorPath, 'log', `refs/heads/${baseBranch}..refs/heads/${branch}`, '--format=%ae'])
+  return stdout.split('\n').filter(Boolean).some((email) => email !== BOT_AUTHOR_EMAIL)
+}
+
 async function statusPorcelain(worktreeDir: string): Promise<Array<{ status: string, path: string }>> {
   // --untracked-files=all, not the (default) 'normal' - an entirely-new
   // directory otherwise collapses to just its own path (e.g. ".github/"),
@@ -104,6 +178,11 @@ module.exports = {
   ensureMirror,
   resolveDefaultBranch,
   addWorktree,
+  addWorktreeOnBranch,
+  commitAll,
+  pushBranch,
+  hasForeignCommits,
   statusPorcelain,
   diffFor,
+  BOT_AUTHOR_EMAIL,
 }

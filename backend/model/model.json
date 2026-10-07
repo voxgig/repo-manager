@@ -421,6 +421,16 @@
             "aim": "inbox"
           },
           {
+            "apply": "policy"
+          }
+        ]
+      },
+      {
+        "pat": [
+          {
+            "aim": "inbox"
+          },
+          {
             "list": "external"
           }
         ]

@@ -295,7 +295,15 @@ module.exports = function forge_mem(this: any) {
   })
 
   seneca.message('aim:forge,open:pr,forge:mem', async function (msg: any) {
-    const pr = { id: 'p' + (Object.keys(prs).length + 1), repo_id: msg.repo_id, title: msg.title, state: 'open' }
+    const id = 'p' + (Object.keys(prs).length + 1)
+    // head_ref mirrors forge_github's real pr.head.ref (normalizePr) -
+    // apply_policy.ts's own S6 idempotency check (list:pr filtered by
+    // head_ref) needs forge:mem to carry it too, same contract.
+    const pr = {
+      id, repo_id: msg.repo_id, title: msg.title, state: 'open',
+      head_ref: msg.head, base_ref: msg.base,
+      url: `https://example.com/${msg.repo_id}/pull/${id}`,
+    }
     prs[pr.id] = pr
     return { ok: true, pr }
   })
@@ -375,6 +383,17 @@ module.exports = function forge_mem(this: any) {
 
   seneca.message('aim:forge,get:rate,forge:mem', async function () {
     return { ok: true, limit: 5000, remaining: 4987, reset: Math.floor(Date.now() / 1000) + 3600, used: 13 }
+  })
+
+  // apply_policy.ts's own S2 fixture (SPEC §15) - a repo_id whose computed
+  // tool-branch comes back protected by an effective rule, so apply must
+  // skip it before ever pushing. Keyed on a dedicated repo_id used nowhere
+  // else, so no other test's branch_rules answer is affected.
+  const PROTECTED_BRANCH_RULES: any = {
+    'apply-test/protected': [{ type: 'pull_request', parameters: {} }],
+  }
+  seneca.message('aim:forge,get:branch_rules,forge:mem', async function (msg: any) {
+    return { ok: true, rules: PROTECTED_BRANCH_RULES[msg.repo_id] || [] }
   })
 
   return { name: 'forge_mem' }
