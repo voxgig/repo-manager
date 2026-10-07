@@ -3,6 +3,12 @@
   "main": "src/env/cloudflare/worker.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Same joi browser-build problem the root wrangler.json pins - see its
+  // own comment. Kept in step here so `wrangler dev` and any deploy run
+  // from this directory bundle the same node build.
+  "alias": {
+    "@hapi/joi": "@hapi/joi/lib/index.js"
+  },
   "assets": {
     "directory": "../frontend/dist",
     "binding": "ASSETS",
