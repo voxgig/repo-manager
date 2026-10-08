@@ -18,3 +18,8 @@ dist-test
 
 # wrangler dev's local state (Durable Object storage, Miniflare cache).
 **/.wrangler/
+
+# wrangler local secrets (REPL_SECRET etc) - never committed.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example

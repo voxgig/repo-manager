@@ -33,6 +33,8 @@
 // not a downgrade. Node targets don't set fork, so they keep hashing in
 // a real subprocess, unchanged.
 
+import { inspect } from 'node:util'
+
 import Seneca from 'seneca'
 
 import { basic, base } from '../shared/basic'
@@ -54,6 +56,9 @@ export interface Env {
   GITHUB_TOKEN?: string
   ADMIN_EMAIL?: string
   ADMIN_PASSWORD?: string
+  // Gates /repl. Unset means the bridge is off entirely - set it as a
+  // Cloudflare secret, never a wrangler.json var.
+  REPL_SECRET?: string
   ASSETS?: Fetcher
 }
 
@@ -201,6 +206,11 @@ export class RepoManagerDO {
     await this.ready
 
     const url = new URL(request.url)
+
+    if ('/repl' === url.pathname && 'POST' === request.method) {
+      return this.repl(request, url)
+    }
+
     if ('/seneca' !== url.pathname || 'POST' !== request.method) {
       return new Response('not found', { status: 404 })
     }
@@ -208,13 +218,73 @@ export class RepoManagerDO {
     const handler = this.seneca.export('gateway-cloudflare/handler')
     return handler(request, { env: this.env, execCtx: undefined })
   }
+
+  // REPL bridge for the seneca-repl CLI, ported from night-sky-logbook's
+  // handler/cloudflare/monitor (see its AGENTS.md "Cloudflare Workers REPL
+  // access"). Deliberately NOT @seneca/repl itself: that plugin's
+  // ReplInstance constructor calls node:repl's repl.start() unconditionally,
+  // which Workers' compat shim doesn't implement ("[unenv] repl.start is not
+  // implemented yet!") - confirmed live in that project, unrelated to the
+  // plugin's listen:false option.
+  //
+  // So this speaks the CLI's wire protocol directly ({id,cmd} in,
+  // {ok,out}|{ok,err} out - RequestStream in bin/seneca-repl-exec.js) and
+  // treats cmd as a bare pin. The CLI's own REPL-language features
+  // (<%...%> directives, data/quit, JS eval) are all client-side, so a
+  // plain pin string is what actually arrives.
+  //
+  // This bypasses the gateway entirely, so it reaches EVERY pin, not just
+  // the aim:web allow-list the browser is held to - that is the point, and
+  // the reason it is secret-gated.
+  private async repl(request: Request, url: URL): Promise<Response> {
+    const reply = (body: any, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+    const secret = this.env.REPL_SECRET
+    if (!secret || url.searchParams.get('secret') !== secret) {
+      return reply({ ok: false, err: 'unauthorized' }, 401)
+    }
+
+    try {
+      const { cmd } = (await request.json()) as { id?: string, cmd?: string }
+      const pin = (cmd || '').trim()
+
+      // The CLI always sends a literal "hello" first, before anything typed
+      // (operate() in seneca-repl-exec.js) - not a pin, so seneca.post()
+      // would always fail on it. Its handleResponse strips exactly one
+      // character off each end of this first reply before JSON.parse-ing,
+      // expecting the quote-wrapping that util.inspect of a string produces
+      // on a real Node REPL. Match that exactly or the handshake fails
+      // silently.
+      if ('hello' === pin) {
+        const identity = { version: this.seneca.version, id: this.seneca.id, when: Date.now() }
+        return reply({ ok: true, out: inspect(JSON.stringify(identity)) + '\n' })
+      }
+
+      const result = await this.seneca.post(pin)
+      return reply({ ok: true, out: inspect(result) + '\n' })
+    }
+    catch (err: any) {
+      // ok:200 with ok:false - the CLI renders err as REPL output rather
+      // than treating a bad pin as a transport failure.
+      return reply({ ok: false, err: err.message })
+    }
+    // No seneca.close() here, unlike night-sky's bridge: its Seneca is built
+    // per request, ours is built once in the DO constructor and reused for
+    // the DO's lifetime. Closing it would take down every later request.
+  }
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
-    if ('/seneca' === url.pathname) {
+    // /repl goes to the same singleton DO as /seneca - the REPL has to run
+    // against the one live Seneca instance, not a fresh one.
+    if ('/seneca' === url.pathname || '/repl' === url.pathname) {
       const id = env.REPO_MANAGER_DO.idFromName('singleton')
       const stub = env.REPO_MANAGER_DO.get(id)
       return stub.fetch(request)
