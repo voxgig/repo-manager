@@ -24,10 +24,18 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["RepoManagerDO"] }
   ],
+  // Real GitHub, not the mem fixtures. GITHUB_TOKEN is deliberately absent
+  // here - it is a Cloudflare secret, never a committed var.
+  //
+  // The repo list is voxgig only, not the full voxgig+senecajs fleet: an
+  // env var caps at 5KB and all 283 non-archived repos serialise to 7.4KB,
+  // so the full fleet needs org-based config (REPO_MANAGER_ORGS + a
+  // list:repo forge action) rather than a flat list. 32 repos is also
+  // ~150 subrequests per sync, within range; 283 would be ~1200.
   "vars": {
-    "REPO_MANAGER_FORGE": "mem",
-    "REPO_MANAGER_REPOS": "r1,voxgig/sdkgen",
-    "REPO_MANAGER_GITHUB_USER": "maintainer1",
+    "REPO_MANAGER_FORGE": "github",
+    "REPO_MANAGER_REPOS": "voxgig/apidef,voxgig/sdkgen,voxgig/struct,voxgig/repo-manager,voxgig/create-sdkgen,voxgig/sdkgen-langpack,voxgig/apidef-validate,voxgig/model,voxgig/docgen,voxgig/sekreto,voxgig/omni,voxgig/sdkgen-infrapack,voxgig/sdkgen-validate,voxgig/conf-agenda,voxgig/docgen-validate,voxgig/likeness,voxgig/util,voxgig/udk,voxgig/system,voxgig/station,voxgig/station-view,voxgig/plugin,voxgig/create-system,voxgig/build,voxgig/voxgig-ui,voxgig/diagram,voxgig/apigen,voxgig/model-react,voxgig/podmind-plugins,voxgig/model-vue,voxgig/podmind,voxgig/vxo",
+    "REPO_MANAGER_GITHUB_USER": "Rarfael",
     "ADMIN_EMAIL": "admin@repo-manager.local",
     "ADMIN_PASSWORD": "demo-pass-123"
   },
