@@ -1,0 +1,8 @@
+# Local-only secrets for `wrangler dev`. Copy to .dev.vars, which is
+# gitignored. In production these are Cloudflare secrets (set with
+# `wrangler secret put NAME`), never wrangler.json vars - vars are
+# committed plaintext.
+
+# Gates POST /repl, the seneca-repl bridge. Unset means the bridge is
+# off entirely and every request to it gets 401.
+REPL_SECRET=some-local-secret
