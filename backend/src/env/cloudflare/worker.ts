@@ -177,7 +177,19 @@ export class RepoManagerDO {
     }
     else {
       seneca.use(require('../../forge/forge_github'), {
-        provider: { sdk: { headers: { Authorization: 'Bearer ' + (this.env.GITHUB_TOKEN || '') } } },
+        // User-Agent is required by GitHub's API, and only this target has
+        // to say so: Node's fetch sets one by default (so web.ts/cli.ts are
+        // fine), Workers' does not. Without it GitHub answers with the
+        // plain-text "Request forbidden by administrative rules..." page,
+        // which the SDK then fails to parse as JSON.
+        provider: {
+          sdk: {
+            headers: {
+              Authorization: 'Bearer ' + (this.env.GITHUB_TOKEN || ''),
+              'User-Agent': 'repo-manager',
+            },
+          },
+        },
       })
     }
 
