@@ -18,12 +18,30 @@ module.exports = function forge_github(this: any, options: any) {
     .use(SenecaProvider)
     .use(SenecaGithubProvider, options.provider || {})
 
+  // repo_id must be owner/name - a bare name leaves {repo} unsubstituted in
+  // the SDK's /repos/{owner}/{repo}/... path and GitHub answers 404, which
+  // reads like a missing repo rather than a malformed id.
+  function splitRepoId(repo_id: any): { owner: string, repo: string } | null {
+    const [owner, repo] = String(repo_id).split('/')
+    return (owner && repo) ? { owner, repo } : null
+  }
+
   seneca.message('aim:forge,list:pr,forge:github', async function (this: any, msg: any) {
-    const [owner, repo] = String(msg.repo_id).split('/')
-    const list = await this.entity('provider/github/pull').list$({ owner, repo })
-    return {
-      ok: true,
-      prs: list.map((pr: any) => normalizePr(pr, msg.repo_id)),
+    const at = splitRepoId(msg.repo_id)
+    if (!at) {
+      return { ok: false, why: `malformed repo_id (expected owner/name): ${msg.repo_id}` }
+    }
+    // Wrapped so one unreachable repo is skippable by the caller rather than
+    // throwing - list_pr.ts/list_issue.ts both do `if (!res.ok) continue`,
+    // which only works if a forge failure comes back as a value. Same idiom
+    // check_policy.ts's readFile() already uses. The repo_id is in the
+    // message because the SDK's own error does not carry it.
+    try {
+      const list = await this.entity('provider/github/pull').list$(at)
+      return { ok: true, prs: list.map((pr: any) => normalizePr(pr, msg.repo_id)) }
+    }
+    catch (err: any) {
+      return { ok: false, why: `${msg.repo_id}: ${err.message || 'forge call failed'}` }
     }
   })
 
@@ -31,11 +49,19 @@ module.exports = function forge_github(this: any, options: any) {
   // pull_request field when it's really one) - filtered out here so callers
   // only ever see true issues, matching list:pr's own scope.
   seneca.message('aim:forge,list:issue,forge:github', async function (this: any, msg: any) {
-    const [owner, repo] = String(msg.repo_id).split('/')
-    const list = await this.entity('provider/github/issue').list$({ owner, repo })
-    return {
-      ok: true,
-      issues: list.filter((it: any) => !it.pull_request).map((it: any) => normalizeIssue(it, msg.repo_id)),
+    const at = splitRepoId(msg.repo_id)
+    if (!at) {
+      return { ok: false, why: `malformed repo_id (expected owner/name): ${msg.repo_id}` }
+    }
+    try {
+      const list = await this.entity('provider/github/issue').list$(at)
+      return {
+        ok: true,
+        issues: list.filter((it: any) => !it.pull_request).map((it: any) => normalizeIssue(it, msg.repo_id)),
+      }
+    }
+    catch (err: any) {
+      return { ok: false, why: `${msg.repo_id}: ${err.message || 'forge call failed'}` }
     }
   })
 
