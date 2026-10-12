@@ -254,18 +254,33 @@ class VgInbox extends HTMLElement {
   // from load()'s single-view fetch so switching views stays cheap (one
   // request, not four); called after anything that can change more than
   // the active view's own count (initial load, a real sync).
+  //
+  // allSettled, not all: the Durable Object is single-threaded, so these
+  // four requests queue behind whatever just finished - most often the sync
+  // that triggered this call in the first place. A slow one timing out used
+  // to reject the whole Promise.all, which (called fire-and-forget, with no
+  // .catch at either call site) silently dropped the update - every badge
+  // stayed at 0 until something else re-ran this. Each badge now updates
+  // independently off whichever calls actually came back, keeping the
+  // previous count for any that didn't rather than flashing it to 0.
   async refreshCounts() {
-    const [inboxItems, snoozedItems, pulls, issues] = await Promise.all([
+    const results = await Promise.allSettled([
       Api.listInbox('open'), Api.listInbox('snoozed'), Api.listPulls(), Api.listIssues(),
     ])
+    const [inboxItems, snoozedItems, pulls, issues] =
+      results.map((r) => ('fulfilled' === r.status ? r.value : null))
+
     this.counts = {
-      inbox: inboxItems.length, snoozed: snoozedItems.length,
-      aging: agingItems(inboxItems).length, campaigns: campaignItems(inboxItems).length,
+      inbox: inboxItems ? inboxItems.length : this.counts.inbox,
+      snoozed: snoozedItems ? snoozedItems.length : this.counts.snoozed,
+      aging: inboxItems ? agingItems(inboxItems).length : this.counts.aging,
+      campaigns: inboxItems ? campaignItems(inboxItems).length : this.counts.campaigns,
       // The badge shows drifted-cell count, same signal as the repo.drift
       // items already in inboxItems - no separate list:drift round-trip
       // just for a sidebar number.
-      drift: inboxItems.filter((it) => 'repo.drift' === it.kind).length,
-      pulls: pulls.length, issues: issues.length,
+      drift: inboxItems ? inboxItems.filter((it) => 'repo.drift' === it.kind).length : this.counts.drift,
+      pulls: pulls ? pulls.length : this.counts.pulls,
+      issues: issues ? issues.length : this.counts.issues,
     }
     this.render()
   }
