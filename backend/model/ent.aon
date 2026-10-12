@@ -103,6 +103,136 @@ rpm: item: {
 }
 
 
+## Synced fleet data for the browse views (SPEC §9's "sync, not proxy").
+## Not derived work items - the raw open PRs and issues as the forge reported
+## them at the last sync. sync_item.ts already fetches all of this to run its
+## detectors over, so storing it costs no extra forge calls, and list_pr.ts /
+## list_issue.ts read it instead of re-polling every repo on every page load.
+
+rpm: pr: {
+  field: {
+    id: {
+      label: 'ID'
+      kind: String
+    }
+    source: {
+      label: 'Source'
+      kind: String
+    }
+    repo: {
+      label: 'Repo'
+      kind: String
+    }
+    subject_id: {
+      label: 'Subject ID'
+      kind: String
+    }
+    title: {
+      label: 'Title'
+      kind: String
+    }
+    url: {
+      label: 'URL'
+      kind: String
+      valid: Skip
+    }
+    actor: {
+      label: 'Actor'
+      kind: String
+      valid: Skip
+    }
+    updated_at: {
+      label: 'Updated at'
+      kind: Number
+      valid: Skip
+    }
+  }
+  valid: '$$': 'Open'
+}
+
+rpm: issue: {
+  field: {
+    id: {
+      label: 'ID'
+      kind: String
+    }
+    source: {
+      label: 'Source'
+      kind: String
+    }
+    repo: {
+      label: 'Repo'
+      kind: String
+    }
+    subject_id: {
+      label: 'Subject ID'
+      kind: String
+    }
+    title: {
+      label: 'Title'
+      kind: String
+    }
+    url: {
+      label: 'URL'
+      kind: String
+      valid: Skip
+    }
+    actor: {
+      label: 'Actor'
+      kind: String
+      valid: Skip
+    }
+    updated_at: {
+      label: 'Updated at'
+      kind: Number
+      valid: Skip
+    }
+  }
+  valid: '$$': 'Open'
+}
+
+## One cell of the drift matrix (SPEC §14.3) per (repo, policy) - all four
+## statuses, unlike the repo.drift ITEM kind above, which only exists for
+## cells that actually drifted. syncDrift already computes every cell and
+## discards the other three statuses; this keeps them.
+
+rpm: driftcell: {
+  field: {
+    id: {
+      label: 'ID'
+      kind: String
+    }
+    source: {
+      label: 'Source'
+      kind: String
+    }
+    repo: {
+      label: 'Repo'
+      kind: String
+    }
+    policy_id: {
+      label: 'Policy'
+      kind: String
+    }
+    status: {
+      label: 'Status'
+      kind: String
+    }
+    why: {
+      label: 'Why'
+      kind: String
+      valid: Skip
+    }
+    updated_at: {
+      label: 'Updated at'
+      kind: Number
+      valid: Skip
+    }
+  }
+  valid: '$$': 'Open'
+}
+
+
 ## Example application entity. Uncomment (and the zone shape line) to add
 ## your first entity; the owner_id field gives per-user isolation via the
 ## @seneca/owner plugin (see src/env/shared/basic.ts).

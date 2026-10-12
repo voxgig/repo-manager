@@ -14,8 +14,8 @@ const { SEED_POLICIES, runPolicy } = require('./check_policy')
 // Same shape for both subject kinds: which aim:forge,list:* answers it,
 // which field of the response carries the list, which detectors run over it.
 const SOURCES = [
-  { list: 'pr', items_key: 'prs', detectors: PR_DETECTORS },
-  { list: 'issue', items_key: 'issues', detectors: ISSUE_DETECTORS },
+  { list: 'pr', items_key: 'prs', detectors: PR_DETECTORS, ent: 'rpm/pr' },
+  { list: 'issue', items_key: 'issues', detectors: ISSUE_DETECTORS, ent: 'rpm/issue' },
 ]
 
 module.exports = function make_sync_item() {
@@ -27,6 +27,10 @@ module.exports = function make_sync_item() {
     const for_user: string = msg.for_user
 
     const seen = new Set<string>()
+    // Separate from `seen` (which keys work-item CONDITIONS): this keys the
+    // raw subjects and drift cells backing the browse views, swept at the end
+    // so a merged PR or a repo that went compliant stops being listed.
+    const seenSubjects = new Set<string>()
     let created = 0
     let updated = 0
 
@@ -43,6 +47,12 @@ module.exports = function make_sync_item() {
         if (!res.ok) continue
 
         for (const subject of res[source.items_key]) {
+          // Store the raw subject for the browse views (SPEC §9) before the
+          // detectors run - they only keep what becomes a work item, and the
+          // Pull requests / Issues views need everything. Free: this data is
+          // already fetched above, it was just being discarded.
+          await upsertSubject(seneca, source.ent, forge, repo_id, subject, seenSubjects)
+
           for (const detect of source.detectors) {
             const cond = detect(subject, for_user)
             if (!cond) continue
@@ -119,9 +129,23 @@ module.exports = function make_sync_item() {
     // pairs are deliberately NOT added to `seen`: the generic auto-resolve
     // sweep below removes any stale drift item for them, same as a merged
     // PR's condition disappearing - no separate resolve logic needed here.
-    const driftCounts = await syncDrift(seneca, repo_ids, forge, seen)
+    const driftCounts = await syncDrift(seneca, repo_ids, forge, seen, seenSubjects)
     created += driftCounts.created
     updated += driftCounts.updated
+
+    // Browse-view sweep, the same shape as the work-item auto-resolve below:
+    // anything stored for a repo in THIS sync's scope that the forge no
+    // longer reports is gone (PR merged, issue closed, policy now passes).
+    // Rows for repos outside repo_ids are left untouched.
+    for (const ent of ['rpm/pr', 'rpm/issue', 'rpm/driftcell']) {
+      for (const row of await seneca.entity(ent).list$()) {
+        if (!repo_ids.includes(row.repo)) continue
+        const key = subjectKey(ent, row.source, row.repo, row.subject_id || row.policy_id)
+        if (!seenSubjects.has(key)) {
+          await seneca.entity(ent).remove$(row.id)
+        }
+      }
+    }
 
     // Auto-resolve: open OR snoozed items in this sync's scope whose
     // condition wasn't seen this pass - the PR merged, closed, went
@@ -150,7 +174,59 @@ module.exports = function make_sync_item() {
 // the caller's auto-resolve sweep for the "went compliant again" case
 // (see the call site's comment). No apply/bulk-write pipeline yet
 // (Stage 3, §19.6) - check only.
-async function syncDrift(seneca: any, repo_ids: string[], forge: string, seen: Set<string>) {
+// One key shape for every browse-view row, so the sweep above can treat
+// subjects and drift cells identically. Drift cells have no subject_id - the
+// policy id plays that role.
+function subjectKey(ent: string, source: string, repo: string, subject_id: string) {
+  return [ent, source, repo, subject_id].join('|')
+}
+
+// Upsert-by-identity rather than save-over-the-top: the store has no unique
+// constraint, so without the lookup a resync would duplicate every row.
+async function upsertSubject(
+  seneca: any, ent: string, forge: string, repo_id: string, subject: any, seenSubjects: Set<string>,
+) {
+  const subject_id = String(subject.id)
+  seenSubjects.add(subjectKey(ent, forge, repo_id, subject_id))
+
+  const data = {
+    source: forge, repo: repo_id, subject_id,
+    title: subject.title, url: subject.url, actor: subject.author,
+    updated_at: subject.updated_at,
+  }
+
+  const existing = (await seneca.entity(ent).list$({ source: forge, repo: repo_id, subject_id }))[0]
+  if (existing) {
+    await seneca.entity(ent).data$({ ...existing.data$(false), ...data }).save$()
+  }
+  else {
+    await seneca.entity(ent).data$(data).save$()
+  }
+}
+
+async function upsertDriftCell(
+  seneca: any, forge: string, repo_id: string, policy_id: string, result: any, seenSubjects: Set<string>,
+) {
+  seenSubjects.add(subjectKey('rpm/driftcell', forge, repo_id, policy_id))
+
+  const data = {
+    source: forge, repo: repo_id, policy_id,
+    status: result.status, why: result.why, updated_at: Date.now(),
+  }
+
+  const existing = (await seneca.entity('rpm/driftcell')
+    .list$({ source: forge, repo: repo_id, policy_id }))[0]
+  if (existing) {
+    await seneca.entity('rpm/driftcell').data$({ ...existing.data$(false), ...data }).save$()
+  }
+  else {
+    await seneca.entity('rpm/driftcell').data$(data).save$()
+  }
+}
+
+async function syncDrift(
+  seneca: any, repo_ids: string[], forge: string, seen: Set<string>, seenSubjects: Set<string>,
+) {
   let created = 0
   let updated = 0
   const now = Date.now()
@@ -164,6 +240,11 @@ async function syncDrift(seneca: any, repo_ids: string[], forge: string, seen: S
       // call itself failed) are matrix-only signals, not something the
       // maintainer needs to act on the same way.
       const result = await runPolicy(seneca, forge, repo_id, policy)
+
+      // Every cell is stored, all four statuses - that is the matrix
+      // (SPEC §14.3). Only a drift becomes a work item, below.
+      await upsertDriftCell(seneca, forge, repo_id, policy.id, result, seenSubjects)
+
       if ('drifted' !== result.status) {
         continue
       }

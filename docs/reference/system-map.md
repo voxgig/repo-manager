@@ -29,7 +29,10 @@ flowchart TB
   gateway --> srv_inbox
   subgraph data[Entities]
     subgraph zone_rpm[zone rpm]
+      rpm_driftcell[driftcell]
+      rpm_issue[issue]
       rpm_item[item]
+      rpm_pr[pr]
     end
     subgraph zone_sys[zone sys]
       sys_login[login]
