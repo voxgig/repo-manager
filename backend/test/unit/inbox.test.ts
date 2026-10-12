@@ -161,9 +161,15 @@ describe('inbox', () => {
   // Pull requests / Issues nav views (list_pr.ts / list_issue.ts): raw
   // fleet browse, no rpm/item behind any row - every open PR/issue across
   // the given repos, unfiltered.
+  //
+  // These read the store (rpm/pr, rpm/issue), not the forge, so a sync has
+  // to have populated it first - that IS the behaviour under test (SPEC §9,
+  // "sync, not proxy"). If these ever pass without the sync, the views have
+  // gone back to polling the forge on every page load.
 
   test('list-pr-aggregates-open-prs-across-repos-with-a-repo-scoped-id', async () => {
     const seneca = await makeSeneca()
+    await seneca.post({ ...SYNC, repo_ids: ['r1', 'r2'] })
 
     const res = await seneca.post('aim:inbox,list:pr', { repo_ids: ['r1', 'r2'], forge: 'mem' })
     expect(res.ok).true()
@@ -180,12 +186,66 @@ describe('inbox', () => {
 
   test('list-issue-aggregates-open-issues-across-repos-with-a-repo-scoped-id', async () => {
     const seneca = await makeSeneca()
+    await seneca.post(SYNC)
 
     const res = await seneca.post('aim:inbox,list:issue', { repo_ids: ['r1'], forge: 'mem' })
     expect(res.ok).true()
     expect(res.issues.length).equal(1)
     expect(res.issues[0].id).equal('r1#i1')
     expect(res.issues[0].kind).equal('issue.open')
+
+    await seneca.close()
+  })
+
+
+  test('list-pr-serves-the-store-not-the-forge', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+    expect((await seneca.post('aim:inbox,list:pr', { repo_ids: ['r1'], forge: 'mem' })).prs.length)
+      .equal(1)
+
+    // Change the forge underneath WITHOUT re-syncing. A proxying list would
+    // immediately stop reporting the merged PR; a stored one keeps showing
+    // the last sync's view of the world, which is the whole point of
+    // SPEC §9 - and what makes the view fast.
+    await seneca.post('aim:forge,merge:pr,forge:mem', { pr_id: 'p1' })
+
+    const res = await seneca.post('aim:inbox,list:pr', { repo_ids: ['r1'], forge: 'mem' })
+    expect(res.prs.length).equal(1)
+    expect(res.prs[0].id).equal('r1#p1')
+
+    await seneca.close()
+  })
+
+
+  test('a-resync-sweeps-browse-rows-the-forge-no-longer-reports', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post(SYNC)
+
+    await seneca.post('aim:forge,merge:pr,forge:mem', { pr_id: 'p1' })
+    await seneca.post(SYNC)
+
+    // Without the sweep these rows would accumulate forever - a merged PR
+    // simply drops out of the forge's open list, it is never "deleted".
+    const res = await seneca.post('aim:inbox,list:pr', { repo_ids: ['r1'], forge: 'mem' })
+    expect(res.prs.length).equal(0)
+
+    await seneca.close()
+  })
+
+
+  test('the-sweep-leaves-repos-outside-this-syncs-scope-alone', async () => {
+    const seneca = await makeSeneca()
+    await seneca.post({ ...SYNC, repo_ids: ['r1', 'r2'] })
+    expect((await seneca.post('aim:inbox,list:pr', { repo_ids: ['r2'], forge: 'mem' })).prs.length)
+      .equal(2)
+
+    // Syncing r1 alone must not sweep r2's rows: they were not seen this
+    // pass only because r2 was never looked at.
+    await seneca.post(SYNC)
+
+    const res = await seneca.post('aim:inbox,list:pr', { repo_ids: ['r2'], forge: 'mem' })
+    expect(res.prs.length).equal(2)
 
     await seneca.close()
   })
@@ -789,6 +849,8 @@ describe('inbox', () => {
   test('list-drift-returns-every-repo-policy-cell-compliant-or-not', async () => {
     const seneca = await makeSeneca()
 
+    await seneca.post({ ...SYNC, repo_ids: ['r1', 'r7'] })
+
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['r1', 'r7'], forge: 'mem' })
     expect(res.ok).true()
     expect(res.policies.map((p: any) => p.id).sort()).equal(['dependency-bot', 'pinned-actions', 'standard-ci'])
@@ -816,6 +878,8 @@ describe('inbox', () => {
 
     // No files entry at all for this repo_id - forge_mem's get:file
     // returns exists:false for every path, including package.json.
+    await seneca.post({ ...SYNC, repo_ids: ['tabnas/native-bridge'] })
+
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['tabnas/native-bridge'], forge: 'mem' })
     expect(res.ok).true()
     expect(res.cells[0].status).equal('not-applicable')
@@ -826,6 +890,8 @@ describe('inbox', () => {
 
   test('list-drift-reports-error-when-the-forge-call-itself-fails', async () => {
     const seneca = await makeSeneca()
+
+    await seneca.post({ ...SYNC, repo_ids: ['voxgig-sdk/legacy-connector'] })
 
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig-sdk/legacy-connector'], forge: 'mem' })
     expect(res.ok).true()
@@ -842,6 +908,8 @@ describe('inbox', () => {
   test('dependency-bot-drifts-a-repo-with-no-renovate-json', async () => {
     const seneca = await makeSeneca()
 
+    await seneca.post({ ...SYNC, repo_ids: ['voxgig-sdk/stripe-sdk'] })
+
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig-sdk/stripe-sdk'], forge: 'mem' })
     const cell = res.cells.find((c: any) => 'dependency-bot' === c.policy_id)
     expect(cell.status).equal('drifted')
@@ -852,6 +920,8 @@ describe('inbox', () => {
 
   test('dependency-bot-is-compliant-when-renovate-json-is-present', async () => {
     const seneca = await makeSeneca()
+
+    await seneca.post({ ...SYNC, repo_ids: ['voxgig/sdkgen'] })
 
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig/sdkgen'], forge: 'mem' })
     const cell = res.cells.find((c: any) => 'dependency-bot' === c.policy_id)
@@ -869,6 +939,8 @@ describe('inbox', () => {
   test('pinned-actions-drifts-a-workflow-with-a-tag-pinned-action', async () => {
     const seneca = await makeSeneca()
 
+    await seneca.post({ ...SYNC, repo_ids: ['tabnas/jsonic'] })
+
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['tabnas/jsonic'], forge: 'mem' })
     const byPolicy: any = {}
     for (const cell of res.cells) byPolicy[cell.policy_id] = cell
@@ -883,6 +955,8 @@ describe('inbox', () => {
   test('pinned-actions-is-compliant-for-a-sha-pinned-action', async () => {
     const seneca = await makeSeneca()
 
+    await seneca.post({ ...SYNC, repo_ids: ['voxgig/model'] })
+
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig/model'], forge: 'mem' })
     const cell = res.cells.find((c: any) => 'pinned-actions' === c.policy_id)
     expect(cell.status).equal('compliant')
@@ -892,6 +966,8 @@ describe('inbox', () => {
 
   test('pinned-actions-is-not-applicable-when-there-is-no-ci-workflow-at-all', async () => {
     const seneca = await makeSeneca()
+
+    await seneca.post({ ...SYNC, repo_ids: ['voxgig/station'] })
 
     const res = await seneca.post('aim:inbox,list:drift', { repo_ids: ['voxgig/station'], forge: 'mem' })
     const cell = res.cells.find((c: any) => 'pinned-actions' === c.policy_id)

@@ -19,6 +19,91 @@
     },
     "ent": {
       "rpm": {
+        "driftcell": {
+          "field": {
+            "id": {
+              "kind": "String",
+              "label": "ID"
+            },
+            "policy_id": {
+              "kind": "String",
+              "label": "Policy"
+            },
+            "repo": {
+              "kind": "String",
+              "label": "Repo"
+            },
+            "source": {
+              "kind": "String",
+              "label": "Source"
+            },
+            "status": {
+              "kind": "String",
+              "label": "Status"
+            },
+            "updated_at": {
+              "kind": "Number",
+              "label": "Updated at",
+              "valid": "Skip"
+            },
+            "why": {
+              "kind": "String",
+              "label": "Why",
+              "valid": "Skip"
+            }
+          },
+          "id": {
+            "field": "id"
+          },
+          "valid": {
+            "$$": "Open"
+          }
+        },
+        "issue": {
+          "field": {
+            "actor": {
+              "kind": "String",
+              "label": "Actor",
+              "valid": "Skip"
+            },
+            "id": {
+              "kind": "String",
+              "label": "ID"
+            },
+            "repo": {
+              "kind": "String",
+              "label": "Repo"
+            },
+            "source": {
+              "kind": "String",
+              "label": "Source"
+            },
+            "subject_id": {
+              "kind": "String",
+              "label": "Subject ID"
+            },
+            "title": {
+              "kind": "String",
+              "label": "Title"
+            },
+            "updated_at": {
+              "kind": "Number",
+              "label": "Updated at",
+              "valid": "Skip"
+            },
+            "url": {
+              "kind": "String",
+              "label": "URL",
+              "valid": "Skip"
+            }
+          },
+          "id": {
+            "field": "id"
+          },
+          "valid": {
+            "$$": "Open"
+          }
+        },
         "item": {
           "field": {
             "actor": {
@@ -91,6 +176,51 @@
             "updated_at": {
               "kind": "Number",
               "label": "Updated at"
+            },
+            "url": {
+              "kind": "String",
+              "label": "URL",
+              "valid": "Skip"
+            }
+          },
+          "id": {
+            "field": "id"
+          },
+          "valid": {
+            "$$": "Open"
+          }
+        },
+        "pr": {
+          "field": {
+            "actor": {
+              "kind": "String",
+              "label": "Actor",
+              "valid": "Skip"
+            },
+            "id": {
+              "kind": "String",
+              "label": "ID"
+            },
+            "repo": {
+              "kind": "String",
+              "label": "Repo"
+            },
+            "source": {
+              "kind": "String",
+              "label": "Source"
+            },
+            "subject_id": {
+              "kind": "String",
+              "label": "Subject ID"
+            },
+            "title": {
+              "kind": "String",
+              "label": "Title"
+            },
+            "updated_at": {
+              "kind": "Number",
+              "label": "Updated at",
+              "valid": "Skip"
             },
             "url": {
               "kind": "String",
