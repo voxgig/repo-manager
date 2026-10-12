@@ -178,8 +178,21 @@ module.exports = function forge_github(this: any, options: any) {
   // contributors - the caller surfaces that distinction, this action just
   // reports what GitHub actually returned.
   seneca.message('aim:forge,get:members,forge:github', async function (this: any, msg: any) {
-    const list = await this.entity('provider/github/member').list$({ org: msg.org })
-    return { ok: true, logins: list.map((m: any) => m.login) }
+    try {
+      // org_id, not org - the provider's Member entity validates that exact
+      // field name and throws otherwise ("member list: org_id is required").
+      // forge_mem's own fixture takes msg.org, which is why this only ever
+      // failed against real GitHub.
+      const list = await this.entity('provider/github/member').list$({ org_id: msg.org })
+      return { ok: true, logins: list.map((m: any) => m.login) }
+    }
+    catch (err: any) {
+      // Returned, not thrown: list_external.ts already branches on
+      // membersRes.ok, and an uncaught throw here surfaces as a 500 to the
+      // browser instead of the "we can't tell who is a member" case it is
+      // written to handle.
+      return { ok: false, why: `${msg.org}: ${err.message || 'forge call failed'}` }
+    }
   })
 
   // doctor's credential-validity + rate-limit-headroom check (SPEC §17).
